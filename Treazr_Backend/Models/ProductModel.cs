@@ -11,7 +11,6 @@
         public bool InStock { get; set; } = true;
         public bool IsActive { get; set; } = true;  
 
-        public string SpecialOffer { get; set; }
         public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
 
     }

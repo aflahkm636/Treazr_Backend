@@ -14,6 +14,8 @@ namespace Treazr_Backend.Data
 
         public DbSet<Category> categories { get; set; }
 
+        public DbSet<CartItem> CartItems { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -34,15 +36,13 @@ namespace Treazr_Backend.Data
                 .Property(u => u.Role)
                 .HasConversion<string>();
 
-            modelBuilder.Entity<User>()
-                .HasOne(u => u.Cart)
-                .WithOne(c => c.User)
-                .HasForeignKey<Cart>(c => c.UserId);
+           
 
             modelBuilder.Entity<Cart>()
                 .HasMany(c => c.Items)
                 .WithOne(i => i.Cart)
                 .HasForeignKey(i => i.CartId);
+
             modelBuilder.Entity<CartItem>()
                 .HasOne(ci => ci.Product)
                 .WithMany()

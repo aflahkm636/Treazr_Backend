@@ -2,6 +2,7 @@
 {
     public class CartItem : BaseEntity
     {
+        public int Id {  get; set; }
         public int CartId { get; set; }
         public Cart Cart { get; set; }
 
@@ -10,7 +11,6 @@
 
         public string Name { get; set; }
         public decimal Price { get; set; }
-        public string Size { get; set; }
         public int Quantity { get; set; } = 1;
 
         public byte[] ImageData { get; set; }

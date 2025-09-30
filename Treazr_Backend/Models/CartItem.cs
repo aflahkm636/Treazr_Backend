@@ -13,7 +13,7 @@
         public decimal Price { get; set; }
         public int Quantity { get; set; } = 1;
 
-        public byte[] ImageData { get; set; }
-        public string ImageMimeType { get; set; }
+        public byte[]? ImageData { get; set; }
+        public string? ImageMimeType { get; set; }
     }
 }

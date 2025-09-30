@@ -62,8 +62,8 @@ namespace Treazr_Backend.Services.implementation
                     Price = product.Price,
                     Brand = product.Brand,
                     InStock = product.InStock,
-                    CategoryName = product.Category.Name,
-                    ImageUrl = product.Images.FirstOrDefault(i => i.IsMain)?.ImageData != null
+                    CategoryName = product.Category?.Name,
+                    ImageUrl = product.Images?.FirstOrDefault(i => i.IsMain)?.ImageData != null
                         ? $"data:{product.Images.FirstOrDefault(i => i.IsMain)?.ImageMimeType};base64," +
                           Convert.ToBase64String(product.Images.FirstOrDefault(i => i.IsMain)!.ImageData)
                         : null

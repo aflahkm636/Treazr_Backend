@@ -30,7 +30,6 @@ namespace Treazr_Backend.DTOs.ProductDTO
 
         [Required]
         [MinLength(1, ErrorMessage = "At least one size is required.")]
-        public List<string> Sizes { get; set; } = new List<string>();
 
         // Only the main image
         public string? ImageUrl { get; set; }

@@ -21,7 +21,7 @@ namespace Treazr_Backend.Controllers
             _cartService = cartService;
         }
 
-        [Authorize(Policy ="Customer")]
+        [Authorize(Policy = "User")]
         [HttpPost("Add")]
         
         public async Task<IActionResult> AddToCart([FromBody] AddToCartDto dto)
@@ -31,25 +31,20 @@ namespace Treazr_Backend.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        [Authorize(Policy ="User,Admin")]
+        [Authorize(Policy ="Admin")]
         [HttpGet("{UserId?}")]
-        public async Task<IActionResult> GetCart(int? userId=null)
+        public async Task<IActionResult> GetCart(int userId)
         {
-            int currentUserId=GetUserId();
+            var response= await _cartService.GetCartForUserAsync(userId);
+            return StatusCode(response.StatusCode, response);
+        }
+        [Authorize(Policy ="Customer")]
+        [HttpGet]
+        public async Task<IActionResult> GetCart()
+        {
+            int userId = GetUserId();
 
-            if (!User.IsInRole("Admin"))
-            {
-                userId = currentUserId;
-
-            }
-            else
-            {
-                if (userId == null)
-                    return BadRequest(new { Status = 400, Message = "UserId is required for admin" });
-
-            }
-
-            var response= await _cartService.GetCartForUserAsync(userId.Value);
+            var response= await _cartService.GetCartForUserAsync(userId);
             return StatusCode(response.StatusCode, response);
         }
 

@@ -28,15 +28,12 @@ namespace Treazr_Backend.DTOs.ProductDTO
         [Required]
         public int CategoryId { get; set; }
 
-        [Required]
-        [MinLength(1, ErrorMessage = "At least one size is required.")]
-
-        // Only the main image
-        public string? ImageUrl { get; set; }
+    
+        public int CurrentStock {  get; set; }
 
         // For input, multiple uploaded files
         [Required]
         [MinLength(1, ErrorMessage = "At least one image is required.")]
-        public List<IFormFile> Images { get; set; } = new List<IFormFile>();
+        public List<string> ImageBase64 { get; set; } = new List<string>();
     }
 }

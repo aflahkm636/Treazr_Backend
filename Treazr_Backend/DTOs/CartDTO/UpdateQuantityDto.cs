@@ -2,6 +2,6 @@
 {
     public class UpdateQuantityDto
     {
-        public int quantity;
+        public int quantity { get; set; }
     }
 }

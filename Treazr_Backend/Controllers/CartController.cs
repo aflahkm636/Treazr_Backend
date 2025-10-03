@@ -32,7 +32,7 @@ namespace Treazr_Backend.Controllers
         }
 
         [Authorize(Policy ="Admin")]
-        [HttpGet("{UserId?}")]
+        [HttpGet("{UserId}")]
         public async Task<IActionResult> GetCart(int userId)
         {
             var response= await _cartService.GetCartForUserAsync(userId);

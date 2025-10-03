@@ -9,7 +9,8 @@
         public Category Category { get; set; }
         public string Brand { get; set; }
         public bool InStock { get; set; } = true;
-        public bool IsActive { get; set; } = true;  
+        public bool IsActive { get; set; } = true;
+        public int CurrentStock { get; set; }
 
         public ICollection<ProductImage> Images { get; set; } = new List<ProductImage>();
 

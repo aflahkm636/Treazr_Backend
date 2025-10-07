@@ -18,7 +18,7 @@ namespace Treazr_Backend.Profiles
          ));
 
             CreateMap<AddProductDTO, Product>()
-            .ForMember(dest => dest.Images, opt => opt.Ignore()) // handle separately
+            .ForMember(dest => dest.Images, opt => opt.Ignore()) 
             .ForMember(dest => dest.InStock, opt => opt.MapFrom(src => src.CurrentStock > 0))
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => true));
 

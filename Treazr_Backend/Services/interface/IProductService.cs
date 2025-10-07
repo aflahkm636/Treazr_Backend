@@ -8,9 +8,11 @@ namespace Treazr_Backend.Services.interfaces
         Task<ApiResponse<ProductDTO>> AddProductAsync(AddProductDTO dto);
         Task<ApiResponse<IEnumerable<ProductDTO>> >GetProductsByCategoryAsync(int categoryId);
         Task<ApiResponse<ProductDTO?>> GetProductByIdAsync(int id);
+        Task<ApiResponse<IEnumerable<ProductDTO>>> GetAllProductsAsync();
 
         Task<ApiResponse<ProductDTO>> UpdateProductASync(UpdateProductDTO dto);
 
         Task<ApiResponse<string>> ToggleProductStatus(int id);
+        Task<ApiResponse<IEnumerable<ProductDTO>>> GetFilteredProducts(string? name);
     }
 }

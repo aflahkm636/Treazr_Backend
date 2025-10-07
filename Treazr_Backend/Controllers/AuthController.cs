@@ -48,10 +48,8 @@ namespace Treazr_Backend.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
-            // Call your AuthService
             var result = await _authService.LoginAsync(loginDto);
 
-            // Wrap the service result in ApiResponse
             var response = new ApiResponse<object>
             {
                 StatusCode = result.StatusCode,
@@ -59,7 +57,6 @@ namespace Treazr_Backend.Controllers
                 Data = result.Token
             };
 
-            // Return response with the same HTTP status code as from the service
             return StatusCode(result.StatusCode, response);
         }
 

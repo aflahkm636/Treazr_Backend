@@ -120,7 +120,6 @@ namespace Treazr_Backend.Services.implementation
             //_mapper.Map(dto,product);
 
 
-            // Add new images if any
             if (dto.NewImages != null && dto.NewImages.Any())
             {
                 foreach (var file in dto.NewImages)
@@ -139,6 +138,16 @@ namespace Treazr_Backend.Services.implementation
             return new ApiResponse<ProductDTO>(200, "Product Updated Successfully");
         }
 
+        public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetAllProductsAsync()
+        {
+            var products=await _context.Products
+                .Include(p=>p.Category)
+                .Include(p=>p.Images)
+                .ToListAsync();
+
+           var productDto= _mapper.Map<IEnumerable<ProductDTO>>(products);
+            return new ApiResponse<IEnumerable<ProductDTO>>(200, "products fetched succesfully", productDto);
+        }
         public async Task<ApiResponse<string>> ToggleProductStatus(int id)
         {
             var product = await _context.Products.FindAsync(id);
@@ -160,6 +169,27 @@ namespace Treazr_Backend.Services.implementation
             {
                 return new ApiResponse<string>(200, "Product Deactivated Successfully");
             }
+        }
+
+        public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetFilteredProducts(string? name)
+        {
+            var query =  _context.Products
+                .Include(q => q.Category)
+                .Include(q => q.Images)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(name))
+                query = query.Where(q => q.Name.Contains(name) ||  q.Category.Name.Contains(name)|| q.Brand.Contains(name));
+
+            //if (!string.IsNullOrWhiteSpace(category))
+            //    query = query.Where(q => q.Category.Name.Contains(category)||  q.Category.Name.Contains(category) );
+
+            var products=await query.ToListAsync();
+
+            var productDto= _mapper.Map<IEnumerable<ProductDTO>>(products);
+
+            return new ApiResponse<IEnumerable<ProductDTO>>(200,"filtered products successfully" ,productDto);
+
         }
         }
 }

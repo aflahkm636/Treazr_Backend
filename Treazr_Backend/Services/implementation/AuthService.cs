@@ -127,9 +127,6 @@ namespace Treazr_Backend.Services.implementation
             return tokenHandler.WriteToken(token);
         }
 
-        public Task<AuthResponseDto> LoginAsync(LoginRequest loginRequest)
-        {
-            throw new NotImplementedException();
-        }
+       
     }
 }

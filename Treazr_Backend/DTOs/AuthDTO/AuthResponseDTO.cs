@@ -6,6 +6,7 @@ namespace Treazr_Backend.DTOs.AuthDTO
     {
         public int StatusCode { get; set; }
         public string Message { get; set; } = null!;
+
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? Token { get; set; }
 

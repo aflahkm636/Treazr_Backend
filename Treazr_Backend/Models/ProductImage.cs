@@ -2,11 +2,11 @@
 {
     public class ProductImage : BaseEntity
     {
-        public int ProductId { get; set; }          // FK to Product
-        public Product Product { get; set; }        // Navigation property
+        public int ProductId { get; set; }          
+        public Product Product { get; set; }       
 
         public byte[] ImageData { get; set; }
-        public string ImageMimeType { get; set; }   // e.g., "image/png"
-        public bool IsMain { get; set; } = false;   // optional: main image shows First 
+        public string ImageMimeType { get; set; }   
+        public bool IsMain { get; set; } = false;   
     }
 }

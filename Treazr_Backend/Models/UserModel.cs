@@ -13,6 +13,8 @@
         public bool IsBlocked { get; set; } = false;
 
         public Cart? Cart { get; set; }
+
+        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 
     public enum Roles

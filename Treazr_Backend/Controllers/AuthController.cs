@@ -54,10 +54,35 @@ namespace Treazr_Backend.Controllers
             {
                 StatusCode = result.StatusCode,
                 Message = result.Message,
-                Data = result.Token
+                Data = new
+                {
+                    accessToken = result.AccessToken,
+                    refreshToken = result.RefreshToken
+                }
             };
 
             return StatusCode(result.StatusCode, response);
+        }
+
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var result = await _authService.RefreshTokenAsync(refreshToken, ipAddress!);
+            return StatusCode(result.StatusCode, result);
+        }
+
+
+        [HttpPost("revoke-token")]
+        public async Task<IActionResult> RevokeToken([FromBody] string refreshToken)
+        {
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var success = await _authService.RevokeTokenAsync(refreshToken, ipAddress!);
+
+            if (!success)
+                return BadRequest(new { message = "Token is invalid or already revoked" });
+
+            return Ok(new { message = "Token revoked successfully" });
         }
 
 

@@ -17,6 +17,8 @@ namespace Treazr_Backend.Data
         public DbSet<CartItem> CartItems { get; set; }
 
         public DbSet<Wishlist> Wishlist { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Treazr_Backend.Data;
 using Treazr_Backend.DTOs.AuthDTO;
@@ -81,18 +82,25 @@ namespace Treazr_Backend.Services.implementation
                 loginDTO.Password = loginDTO.Password.Trim();
 
                 var user = await _appDbContext.Users
-                    .SingleOrDefaultAsync(u => u.Email == loginDTO.Email);
+     .Include(u => u.RefreshTokens)
+     .SingleOrDefaultAsync(u => u.Email == loginDTO.Email);
 
                 if (user == null || !BCrypt.Net.BCrypt.Verify(loginDTO.Password, user.PasswordHash))
                 {
-                    return new AuthResponseDto(401, "invalid email or  password");
+                    return new AuthResponseDto(401, "Invalid email or password");
                 }
                 else if (user.IsBlocked)
                 {
                     return new AuthResponseDto(403, "This Account Has Been Blocked");
                 }
-                var token = GenerateJwtToken(user);
-                return new AuthResponseDto(200, "Login Successful", token);
+
+                var jwtToken = GenerateJwtToken(user);
+                var refreshToken = GenerateRefreshToken("::1"); // you can replace "::1" with HttpContext.Connection.RemoteIpAddress?.ToString()
+
+                user.RefreshTokens.Add(refreshToken);
+                await _appDbContext.SaveChangesAsync();
+
+                return new AuthResponseDto(200, "Login successful", jwtToken, refreshToken.Token);
 
 
             }
@@ -100,6 +108,53 @@ namespace Treazr_Backend.Services.implementation
             {
                 return new AuthResponseDto(500, $"Error while login{ex.Message}");
             }
+        }
+
+        public async Task<AuthResponseDto> RefreshTokenAsync(string token, string ipAddress)
+        {
+            var user = await _appDbContext.Users
+                .Include(u => u.RefreshTokens)
+                .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
+
+            if (user == null)
+                return new AuthResponseDto(401, "Invalid token");
+
+            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+
+            if (!refreshToken.IsActive)
+                return new AuthResponseDto(401, "Expired or revoked refresh token");
+
+            // generate new refresh token and replace old one
+            var newRefreshToken = GenerateRefreshToken(ipAddress);
+            refreshToken.Revoked = DateTime.UtcNow;
+            refreshToken.RevokedByIp = ipAddress;
+            refreshToken.ReplacedByToken = newRefreshToken.Token;
+            user.RefreshTokens.Add(newRefreshToken);
+
+            // generate new JWT
+            var newJwtToken = GenerateJwtToken(user);
+            await _appDbContext.SaveChangesAsync();
+
+            return new AuthResponseDto(200, "Token refreshed", newJwtToken, refreshToken.Token);
+        }
+        public async Task<bool> RevokeTokenAsync(string token, string ipAddress)
+        {
+            var user = await _appDbContext.Users
+                .Include(u => u.RefreshTokens)
+                .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
+
+            if (user == null) return false;
+
+            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+
+            if (!refreshToken.IsActive) return false;
+
+            // Mark token as revoked
+            refreshToken.Revoked = DateTime.UtcNow;
+            refreshToken.RevokedByIp = ipAddress;
+
+            await _appDbContext.SaveChangesAsync();
+            return true;
         }
 
         private string GenerateJwtToken(User user)
@@ -127,6 +182,17 @@ namespace Treazr_Backend.Services.implementation
             return tokenHandler.WriteToken(token);
         }
 
-       
+        private RefreshToken GenerateRefreshToken(string ipAddress)
+        {
+            return new RefreshToken
+            {
+                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                Expires = DateTime.UtcNow.AddDays(7),
+                Created = DateTime.UtcNow,
+                CreatedByIp = ipAddress
+            };
+        }
+
+
     }
 }

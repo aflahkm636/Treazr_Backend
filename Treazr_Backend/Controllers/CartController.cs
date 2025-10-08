@@ -21,6 +21,14 @@ namespace Treazr_Backend.Controllers
             _cartService = cartService;
         }
 
+        [HttpGet("test-error")]
+        [AllowAnonymous]
+
+        public IActionResult TestError()
+        {
+            throw new Exception("Test exception from controller!");
+        }
+
         [Authorize(Policy = "User")]
         [HttpPost("Add")]
         

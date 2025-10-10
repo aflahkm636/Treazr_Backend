@@ -15,8 +15,8 @@ namespace Treazr_Backend.Models
         public OrderStatus OrderStatus { get; set; } = OrderStatus.Pending;
 
         // Reference saved billing address
-        public int BillingAddressId { get; set; }
-        public Address BillingAddress { get; set; }
+        public int AddressId { get; set; }
+        public Address Address { get; set; }
 
         // Order items
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();

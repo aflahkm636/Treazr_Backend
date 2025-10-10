@@ -21,7 +21,7 @@ namespace Treazr_Backend.Repository.Implementation
 
         public async Task<Category?> GetByNameAsync(string name)
         {
-            return await _context.categories
+            return await _context.Categories
                 .FirstOrDefaultAsync(c => c.Name.ToLower() == name.ToLower());
         }
     }

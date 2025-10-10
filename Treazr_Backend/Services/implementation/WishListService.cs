@@ -17,7 +17,7 @@ namespace Treazr_Backend.Services.implementation
 
         public async Task<ApiResponse<object>> GetWishlistAsync(int userId)
         {
-            var items = await _Context.Wishlist
+            var items = await _Context.Wishlists
                 .Where(x => x.UserId == userId && !x.IsDeleted)
                 .Include(x => x.Product)
                 .ToListAsync();
@@ -40,12 +40,12 @@ namespace Treazr_Backend.Services.implementation
 
         public async Task<ApiResponse<string>> ToggleWishlistasync(int userId, int productId)
         {
-            var existing = await _Context.Wishlist
+            var existing = await _Context.Wishlists
                 .FirstOrDefaultAsync(w => w.UserId == userId && w.ProductId == productId && !w.IsDeleted);
 
             if (existing != null)
             {
-                _Context.Wishlist.Remove(existing);
+                _Context.Wishlists.Remove(existing);
                 await _Context.SaveChangesAsync();
                 return new ApiResponse<string>(200, "Product removed from wishlist");
             }
@@ -68,7 +68,7 @@ namespace Treazr_Backend.Services.implementation
                 ProductId = productId
             };
 
-            _Context.Wishlist.Add(wishlist);
+            _Context.Wishlists.Add(wishlist);
 
             try
             {

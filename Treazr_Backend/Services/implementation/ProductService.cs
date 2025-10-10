@@ -28,7 +28,7 @@ namespace Treazr_Backend.Services.implementation
         {
             try
             {
-                var categoryExists = await _context.categories.AnyAsync(c => c.Id == categoryId);
+                var categoryExists = await _context.Categories.AnyAsync(c => c.Id == categoryId);
                 if (!categoryExists)
                 {
                     return new ApiResponse<IEnumerable<ProductDTO>>(404, $"Category not found with id: {categoryId}");

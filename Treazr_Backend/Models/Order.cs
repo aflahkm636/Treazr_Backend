@@ -20,6 +20,30 @@ namespace Treazr_Backend.Models
 
         // Order items
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+
+
+    }
+    public enum PaymentStatus
+    {
+        Pending,
+        Completed,
+        Failed,
+        Refunded
+    }
+
+    public enum PaymentMethod
+    {
+        CashOnDelivery,
+        Razorpay
+    }
+
+    public enum OrderStatus
+    {
+        Pending,
+        Processing,
+        Shipped,
+        Delivered,
+        Cancelled
     }
 
 }

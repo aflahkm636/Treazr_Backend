@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Treazr_Backend.DTOs.CategoryDTO;
+using Treazr_Backend.DTOs.OrderDto;
 using Treazr_Backend.DTOs.ProductDTO;
 using Treazr_Backend.Models;
 
@@ -26,6 +27,20 @@ namespace Treazr_Backend.Profiles
             // Map only when the source value is not null
             CreateMap<UpdateProductDTO, Product>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
+
+            CreateMap<Order, ViewOrderDTO>()
+             .ForMember(dest => dest.PaymentStatus, opt => opt.MapFrom(src => src.PaymentStatus.ToString()))
+             .ForMember(dest => dest.OrderStatus, opt => opt.MapFrom(src => src.OrderStatus.ToString()))
+             .ForMember(dest => dest.PaymentMethod, opt => opt.MapFrom(src => src.PaymentMethod.ToString()));
+
+            // Map Address -> AddressDTO
+            CreateMap<Address, AddressDTO>();
+
+            // Map OrderItem -> OrderItemDTO
+            CreateMap<OrderItem, OrderItemDTO>()
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name))
+                .ForMember(dest => dest.Images, opt => opt.MapFrom(src => src.Product.Images.Select(i => i.IsMain).ToList()));
+
 
         }
     }

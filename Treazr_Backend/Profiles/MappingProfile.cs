@@ -28,18 +28,28 @@ namespace Treazr_Backend.Profiles
             CreateMap<UpdateProductDTO, Product>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
 
+            CreateMap<CreateOrderDTO, Order>();
+            CreateMap<BuyNowDTO, OrderItem>();
+
             CreateMap<Order, ViewOrderDTO>()
-             .ForMember(dest => dest.PaymentStatus, opt => opt.MapFrom(src => src.PaymentStatus.ToString()))
-             .ForMember(dest => dest.OrderStatus, opt => opt.MapFrom(src => src.OrderStatus.ToString()))
-             .ForMember(dest => dest.PaymentMethod, opt => opt.MapFrom(src => src.PaymentMethod.ToString()));
+                .ForMember(dest => dest.PaymentStatus, opt => opt.MapFrom(src => src.PaymentStatus.ToString()))
+                .ForMember(dest => dest.OrderStatus, opt => opt.MapFrom(src => src.OrderStatus.ToString()))
+                .ForMember(dest => dest.PaymentMethod, opt => opt.MapFrom(src => src.PaymentMethod.ToString()));
 
-            // Map Address -> AddressDTO
-            CreateMap<Address, AddressDTO>();
-
-            // Map OrderItem -> OrderItemDTO
             CreateMap<OrderItem, OrderItemDTO>()
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name))
-                .ForMember(dest => dest.Images, opt => opt.MapFrom(src => src.Product.Images.Select(i => i.IsMain).ToList()));
+                .ForMember(dest => dest.Images, opt => opt.MapFrom(src =>
+                    src.Product.Images
+                        .Select(i => $"data:{i.ImageMimeType};base64,{Convert.ToBase64String(i.ImageData)}")
+                        .ToList()
+                ));
+
+            // Address mapping
+            CreateMap<Address, AddressDTO>();
+            CreateMap<AddressDTO, Address>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.User, opt => opt.Ignore());
+
 
 
         }

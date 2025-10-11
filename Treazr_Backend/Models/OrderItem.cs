@@ -17,7 +17,6 @@ namespace Treazr_Backend.Models
         [Precision(18, 2)]  // Ensures proper money format in SQL
         public decimal Price { get; set; }
 
-        public string Size { get; set; }
         public int Quantity { get; set; }
 
         // Snapshot of product image

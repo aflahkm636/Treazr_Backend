@@ -24,32 +24,70 @@ namespace Treazr_Backend.Services.implementation
 
 
 
-        public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetProductsByCategoryAsync(int categoryId)
+        public async Task<ApiResponse<object>> GetProductsByCategoryAsync(int categoryId, int? pageNumber = null, int? pageSize = null)
         {
             try
             {
                 var categoryExists = await _context.Categories.AnyAsync(c => c.Id == categoryId);
                 if (!categoryExists)
                 {
-                    return new ApiResponse<IEnumerable<ProductDTO>>(404, $"Category not found with id: {categoryId}");
+                    return new ApiResponse<object>(404, $"Category not found with id: {categoryId}");
                 }
 
-                var products = await _productRepo.GetProductsByCategoryAsync(categoryId);
+                var query = _context.Products
+                    .Include(p => p.Category)
+                    .Include(p => p.Images)
+                    .Where(p => p.CategoryId == categoryId)
+                    .OrderBy(p => p.Name)
+                    .AsQueryable();
 
-                if (products == null || !products.Any())
+                if (pageNumber == null || pageSize == null)
                 {
-                    return new ApiResponse<IEnumerable<ProductDTO>>(200, "No products found for this category", new List<ProductDTO>());
+                    var allProducts = await query.ToListAsync();
+                    var allProductDtos = _mapper.Map<IEnumerable<ProductDTO>>(allProducts);
+
+                    return new ApiResponse<object>(
+                        200,
+                        "All products fetched successfully for this category",
+                        new
+                        {
+                            CategoryId = categoryId,
+                            TotalCount = allProductDtos.Count(),
+                            Products = allProductDtos
+                        }
+                    );
                 }
 
-                var result = _mapper.Map<IEnumerable<ProductDTO>>(products);
+                if (pageNumber <= 0) pageNumber = 1;
+                if (pageSize <= 0) pageSize = 10;
 
-                return new ApiResponse<IEnumerable<ProductDTO>>(200, "Products retrieved successfully", result);
+                var totalCount = await query.CountAsync();
+
+                var pagedProducts = await query
+                    .Skip(((int)pageNumber - 1) * (int)pageSize)
+                    .Take((int)pageSize)
+                    .ToListAsync();
+
+                var pagedProductDtos = _mapper.Map<IEnumerable<ProductDTO>>(pagedProducts);
+
+                var pagedResult = new
+                {
+                    CategoryId = categoryId,
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                    Products = pagedProductDtos
+                };
+
+                return new ApiResponse<object>(200, "Products fetched successfully for this category", pagedResult);
             }
             catch (Exception ex)
             {
-                return new ApiResponse<IEnumerable<ProductDTO>>(500, $"Error fetching products: {ex.Message}");
+                return new ApiResponse<object>(500, $"Error fetching products: {ex.Message}");
             }
         }
+
 
 
         public async Task<ApiResponse<ProductDTO?>> GetProductByIdAsync(int id)
@@ -73,7 +111,6 @@ namespace Treazr_Backend.Services.implementation
 
         public async Task<ApiResponse<ProductDTO>> AddProductAsync(AddProductDTO dto)
         {
-            // Map basic fields
             var product = _mapper.Map<Product>(dto);
 
             foreach (var file in dto.Images)
@@ -138,16 +175,54 @@ namespace Treazr_Backend.Services.implementation
             return new ApiResponse<ProductDTO>(200, "Product Updated Successfully");
         }
 
-        public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetAllProductsAsync()
+        public async Task<ApiResponse<object>> GetAllProductsAsync(int? pageNumber = null, int? pageSize = null)
         {
-            var products=await _context.Products
-                .Include(p=>p.Category)
-                .Include(p=>p.Images)
+            var query = _context.Products
+                .Include(p => p.Category)
+                .Include(p => p.Images)
+                .OrderBy(p => p.Name)
+                .AsQueryable();
+
+            if (pageNumber == null || pageSize == null)
+            {
+                var allProducts = await query.ToListAsync();
+                var allProductDtos = _mapper.Map<IEnumerable<ProductDTO>>(allProducts);
+
+                return new ApiResponse<object>(
+                    200,
+                    "All products fetched successfully",
+                    new
+                    {
+                        TotalCount = allProductDtos.Count(),
+                        Products = allProductDtos
+                    }
+                );
+            }
+
+            if (pageNumber <= 0) pageNumber = 1;
+            if (pageSize <= 0) pageSize = 10;
+
+            var totalCount = await query.CountAsync();
+
+            var pagedProducts = await query
+                .Skip(((int)pageNumber - 1) * (int)pageSize)
+                .Take((int)pageSize)
                 .ToListAsync();
 
-           var productDto= _mapper.Map<IEnumerable<ProductDTO>>(products);
-            return new ApiResponse<IEnumerable<ProductDTO>>(200, "products fetched succesfully", productDto);
+            var productDtos = _mapper.Map<IEnumerable<ProductDTO>>(pagedProducts);
+
+            var pagedResult = new
+            {
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                Products = productDtos
+            };
+
+            return new ApiResponse<object>(200, "Products fetched successfully", pagedResult);
         }
+
         public async Task<ApiResponse<string>> ToggleProductStatus(int id)
         {
             var product = await _context.Products.FindAsync(id);

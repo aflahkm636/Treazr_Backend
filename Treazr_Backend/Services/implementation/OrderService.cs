@@ -27,7 +27,6 @@ namespace Treazr_Backend.Services
 
             try
             {
-                // Get all cart items for the user, including product and its images
                 var cartItems = await _context.CartItems
                     .Include(ci => ci.Product)
                         .ThenInclude(p => p.Images)
@@ -38,7 +37,6 @@ namespace Treazr_Backend.Services
                 if (!cartItems.Any())
                     throw new Exception("Cart is empty");
 
-                // Create order items
                 var orderItems = cartItems.Select(ci => new OrderItem
                 {
                     ProductId = ci.ProductId,
@@ -48,16 +46,12 @@ namespace Treazr_Backend.Services
                     Name = ci.Product.Name
                 }).ToList();
 
-                // Remove cart items
                 _context.CartItems.RemoveRange(cartItems);
 
-                // Get or create address
                 var address = await GetOrCreateAddress(dto, userId);
 
-                // Calculate total amount
                 var totalAmount = orderItems.Sum(oi => oi.Price * oi.Quantity);
 
-                // Map order and set properties
                 var order = _mapper.Map<Order>(dto);
                 order.UserId = userId;
                 order.TotalAmount = totalAmount;
@@ -66,7 +60,6 @@ namespace Treazr_Backend.Services
                 order.OrderStatus = OrderStatus.Pending;
                 order.PaymentStatus = PaymentStatus.Pending;
 
-                // Save order
                 await _context.Orders.AddAsync(order);
                 await _context.SaveChangesAsync();
 

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Data;
 using Treazr_Backend.Common;
+using Treazr_Backend.Models;
 using Treazr_Backend.Services.interfaces;
 
 namespace Treazr_Backend.Controllers
@@ -19,9 +20,9 @@ namespace Treazr_Backend.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllUsers()
+        public async Task<IActionResult> GetAllUsers(string?search ,Roles? role)
         {
-            var response = await _userService.GetAllUsersAsync();
+            var response = await _userService.GetAllUsersAsync(search,role);
             return StatusCode(response.StatusCode, response);
         }
 

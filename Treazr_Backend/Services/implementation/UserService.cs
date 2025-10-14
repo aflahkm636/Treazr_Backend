@@ -3,6 +3,8 @@ using Treazr_Backend.Data;
 using Treazr_Backend.Models;
 using Treazr_Backend.Repository.interfaces;
 using Treazr_Backend.Services.interfaces;
+using Microsoft.EntityFrameworkCore;
+
 
 namespace Treazr_Backend.Services.implementation
 {
@@ -17,10 +19,26 @@ namespace Treazr_Backend.Services.implementation
             _context = context;
         }
 
-        public async Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync()
+
+        public async Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync(string? search = null,Roles? sortByRole = null)
         {
-            var users = await _userrepo.GetAllAsync();
-            return new ApiResponse<IEnumerable<User>>(200, "users retrieved succesfully", users);
+            var query = _context.Users.AsQueryable().Where(u => !u.IsDeleted);
+            query = query.Where(u => !u.IsDeleted); 
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                search = search.ToLower();
+                query = query.Where(u => u.Name.ToLower().Contains(search) ||
+                                         u.Id.ToString().Contains(search));
+            }
+
+            if (sortByRole.HasValue)
+            {
+                query = query.Where(u => u.Role == sortByRole!.Value);
+            }
+
+            var users = await query.ToListAsync();
+            return new ApiResponse<IEnumerable<User>>(200, "Users retrieved successfully", users);
         }
 
         public async Task<ApiResponse<User>> GetUserByIdAsync(int id)

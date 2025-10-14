@@ -20,18 +20,16 @@ namespace Treazr_Backend.DTOs.ProductDTO
         public bool InStock { get; set; } = true;
 
 
-      
-        // For output
+        public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
+
         public string CategoryName { get; set; }
 
-        // For input (when adding/updating product)
         [Required]
         public int CategoryId { get; set; }
 
     
         public int CurrentStock {  get; set; }
 
-        // For input, multiple uploaded files
         [Required]
         [MinLength(1, ErrorMessage = "At least one image is required.")]
         public List<string> ImageBase64 { get; set; } = new List<string>();

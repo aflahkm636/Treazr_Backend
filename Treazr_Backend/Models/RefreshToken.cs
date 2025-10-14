@@ -12,7 +12,6 @@
         public string? ReplacedByToken { get; set; }
         public bool IsActive => Revoked == null && !IsExpired;
 
-        // Relation
         public int UserId { get; set; }
         public User User { get; set; } = null!;
     }

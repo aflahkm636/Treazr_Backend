@@ -32,11 +32,12 @@ namespace Treazr_Backend.Controllers
 
         [HttpGet("category/{categoryId:int}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetProductsByCategoryAsync(int categoryId)
+       public async Task<IActionResult> GetProductsByCategoryAsync(int categoryId, [FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
         {
-            var products = await _productService.GetProductsByCategoryAsync(categoryId);
+            var products = await _productService.GetProductsByCategoryAsync(categoryId, pageNumber, pageSize);
             return StatusCode(products.StatusCode, products);
         }
+
 
         [HttpPost]
         [Authorize(Policy ="Admin")]
@@ -64,9 +65,9 @@ namespace Treazr_Backend.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAllProducts()
+        public async Task<IActionResult> GetAllProducts([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
         {
-            var products = await _productService.GetAllProductsAsync();
+            var products = await _productService.GetAllProductsAsync(pageNumber,pageSize);
             return StatusCode(products.StatusCode, products);
         }
 

@@ -5,7 +5,7 @@ namespace Treazr_Backend.Services.interfaces
 {
     public interface IUserService
     {
-        Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync();
+        Task<ApiResponse<IEnumerable<User>>> GetAllUsersAsync(string? search = null, Roles? sortByRole = null);
         Task<ApiResponse<User>> GetUserByIdAsync(int id);
 
         Task<ApiResponse<string>> BlockUnblockUserAsync(int id);

@@ -1,198 +1,195 @@
-﻿using Microsoft.AspNetCore.Identity.Data;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-using Treazr_Backend.Data;
-using Treazr_Backend.DTOs.AuthDTO;
-using Treazr_Backend.Models;
-using Treazr_Backend.Repository.interfaces;
-using Treazr_Backend.Services.interfaces;
+﻿        using Microsoft.AspNetCore.Identity.Data;
+        using Microsoft.EntityFrameworkCore;
+        using Microsoft.IdentityModel.Tokens;
+        using System.IdentityModel.Tokens.Jwt;
+        using System.Security.Claims;
+        using System.Security.Cryptography;
+        using System.Text;
+        using Treazr_Backend.Data;
+        using Treazr_Backend.DTOs.AuthDTO;
+        using Treazr_Backend.Models;
+        using Treazr_Backend.Repository.interfaces;
+        using Treazr_Backend.Services.interfaces;
 
-namespace Treazr_Backend.Services.implementation
-{
-    public class AuthService : IAuthService
-    {
-        private readonly AppDbContext _appDbContext;
-        private readonly IGenericRepository<User> _userrepo;
-        private readonly IConfiguration _configuration;
-
-        public AuthService(AppDbContext appDbContext, IGenericRepository<User> userrepo, IConfiguration configuration)
+        namespace Treazr_Backend.Services.implementation
         {
-            _appDbContext = appDbContext;
-            _userrepo = userrepo;
-            _configuration = configuration;
-        }
-
-        public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
-        {
-            try
+            public class AuthService : IAuthService
             {
-                if (registerDto == null)
-                {
-                    throw new ArgumentNullException("register request cannot be null");
+                private readonly AppDbContext _appDbContext;
+                private readonly IGenericRepository<User> _userrepo;
+                private readonly IConfiguration _configuration;
 
+                public AuthService(AppDbContext appDbContext, IGenericRepository<User> userrepo, IConfiguration configuration)
+                {
+                    _appDbContext = appDbContext;
+                    _userrepo = userrepo;
+                    _configuration = configuration;
                 }
 
-                registerDto.Email = registerDto.Email.ToLower().Trim();
-                registerDto.Name = registerDto.Name.Trim();
-                registerDto.Password = registerDto.Password.Trim();
-
-
-                var UserExist = await _appDbContext.Users
-                    .SingleOrDefaultAsync(u=>u.Email==registerDto.Email);
-
-                if (UserExist != null)
+                public async Task<AuthResponseDto> RegisterAsync(RegisterDto registerDto)
                 {
-                    return new AuthResponseDto(409, "Email already exist");
-                }
+                    try
+                    {
+                        if (registerDto == null)
+                        {
+                            throw new ArgumentNullException("register request cannot be null");
 
-                var newUser = new User
-                {
-                    Email = registerDto.Email,
-                    Name = registerDto.Name,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
-                    Role = Roles.user
-                };
-                await _userrepo.AddAsync(newUser);
-                return new AuthResponseDto(200, "registeration succesfull");
-            }
-            catch (Exception ex)
-            {
-                {
-                    return new AuthResponseDto(500, $"error adding user {ex.Message}");
-                }
-            }
+                        }
+
+                        registerDto.Email = registerDto.Email.ToLower().Trim();
+                        registerDto.Name = registerDto.Name.Trim();
+                        registerDto.Password = registerDto.Password.Trim();
+
+
+                        var UserExist = await _appDbContext.Users
+                            .SingleOrDefaultAsync(u=>u.Email==registerDto.Email);
+
+                        if (UserExist != null)
+                        {
+                            return new AuthResponseDto(409, "Email already exist");
+                        }
+
+                        var newUser = new User
+                        {
+                            Email = registerDto.Email,
+                            Name = registerDto.Name,
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
+                            Role = Roles.user
+                        };
+                        await _userrepo.AddAsync(newUser);
+                        return new AuthResponseDto(200, "registeration succesfull");
+                    }
+                    catch (Exception ex)
+                    {
+                        {
+                            return new AuthResponseDto(500, $"error adding user {ex.Message}");
+                        }
+                    }
 
             
-        }
-
-        public async Task<AuthResponseDto> LoginAsync(LoginDTO loginDTO)
-        {
-            try
-            {
-                if (loginDTO == null)
-                {
-                    throw new ArgumentNullException("Login Request cannot be null");
-
-                }
-                loginDTO.Email = loginDTO.Email.Trim().ToLower();
-                loginDTO.Password = loginDTO.Password.Trim();
-
-                var user = await _appDbContext.Users
-     .Include(u => u.RefreshTokens)
-     .SingleOrDefaultAsync(u => u.Email == loginDTO.Email);
-
-                if (user == null || !BCrypt.Net.BCrypt.Verify(loginDTO.Password, user.PasswordHash))
-                {
-                    return new AuthResponseDto(401, "Invalid email or password");
-                }
-                else if (user.IsBlocked)
-                {
-                    return new AuthResponseDto(403, "This Account Has Been Blocked");
                 }
 
-                var jwtToken = GenerateJwtToken(user);
-                var refreshToken = GenerateRefreshToken("::1"); // you can replace "::1" with HttpContext.Connection.RemoteIpAddress?.ToString()
+                public async Task<AuthResponseDto> LoginAsync(LoginDTO loginDTO)
+                {
+                    try
+                    {
+                        if (loginDTO == null)
+                        {
+                            throw new ArgumentNullException("Login Request cannot be null");
 
-                user.RefreshTokens.Add(refreshToken);
-                await _appDbContext.SaveChangesAsync();
+                        }
+                        loginDTO.Email = loginDTO.Email.Trim().ToLower();
+                        loginDTO.Password = loginDTO.Password.Trim();
 
-                return new AuthResponseDto(200, "Login successful", jwtToken, refreshToken.Token);
+                        var user = await _appDbContext.Users
+             .Include(u => u.RefreshTokens)
+             .SingleOrDefaultAsync(u => u.Email == loginDTO.Email);
+
+                        if (user == null || !BCrypt.Net.BCrypt.Verify(loginDTO.Password, user.PasswordHash))
+                        {
+                            return new AuthResponseDto(401, "Invalid email or password");
+                        }
+                        else if (user.IsBlocked)
+                        {
+                            return new AuthResponseDto(403, "This Account Has Been Blocked");
+                        }
+
+                        var jwtToken = GenerateJwtToken(user);
+                        var refreshToken = GenerateRefreshToken("::1"); 
+
+                        user.RefreshTokens.Add(refreshToken);
+                        await _appDbContext.SaveChangesAsync();
+
+                        return new AuthResponseDto(200, "Login successful", jwtToken, refreshToken.Token);
+
+
+                    }
+                    catch (Exception ex)
+                    {
+                        return new AuthResponseDto(500, $"Error while login{ex.Message}");
+                    }
+                }
+
+                public async Task<AuthResponseDto> RefreshTokenAsync(string token, string ipAddress)
+                {
+                    var user = await _appDbContext.Users
+                        .Include(u => u.RefreshTokens)
+                        .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
+
+                    if (user == null)
+                        return new AuthResponseDto(401, "Invalid token");
+
+                    var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+
+                    if (!refreshToken.IsActive)
+                        return new AuthResponseDto(401, "Expired or revoked refresh token");
+
+                    var newRefreshToken = GenerateRefreshToken(ipAddress);
+                    refreshToken.Revoked = DateTime.UtcNow;
+                    refreshToken.RevokedByIp = ipAddress;
+                    refreshToken.ReplacedByToken = newRefreshToken.Token;
+                    user.RefreshTokens.Add(newRefreshToken);
+
+                    var newJwtToken = GenerateJwtToken(user);
+                    await _appDbContext.SaveChangesAsync();
+
+                    return new AuthResponseDto(200, "Token refreshed", newJwtToken, refreshToken.Token);
+                }
+                public async Task<bool> RevokeTokenAsync(string token, string ipAddress)
+                {
+                    var user = await _appDbContext.Users
+                        .Include(u => u.RefreshTokens)
+                        .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
+
+                    if (user == null) return false;
+
+                    var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
+
+                    if (!refreshToken.IsActive) return false;
+
+                    refreshToken.Revoked = DateTime.UtcNow;
+                    refreshToken.RevokedByIp = ipAddress;
+
+                    await _appDbContext.SaveChangesAsync();
+                    return true;
+                }
+
+                private string GenerateJwtToken(User user)
+                {
+                    var tokenHandler = new JwtSecurityTokenHandler();
+                    var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Secret"]);
+
+                    var claims = new List<Claim>
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                        new Claim(ClaimTypes.Name, user.Name),
+                        new Claim(ClaimTypes.Email, user.Email),
+                        new Claim(ClaimTypes.Role,user.Role.ToString().ToLower())
+                    };
+                    var TokenDiscriptor = new SecurityTokenDescriptor
+                    {
+                        Subject = new ClaimsIdentity(claims),
+                        Expires = DateTime.UtcNow.AddDays(1),
+                        SigningCredentials = new SigningCredentials(
+                        new SymmetricSecurityKey(key),
+                        SecurityAlgorithms.HmacSha256Signature
+                    )
+                    };
+                    var token = tokenHandler.CreateToken(TokenDiscriptor);
+                    return tokenHandler.WriteToken(token);
+                }
+
+                private RefreshToken GenerateRefreshToken(string ipAddress)
+                {
+                    return new RefreshToken
+                    {
+                        Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+                        Expires = DateTime.UtcNow.AddDays(7),
+                        Created = DateTime.UtcNow,
+                        CreatedByIp = ipAddress
+                    };          
+                }
 
 
             }
-            catch (Exception ex)
-            {
-                return new AuthResponseDto(500, $"Error while login{ex.Message}");
-            }
         }
-
-        public async Task<AuthResponseDto> RefreshTokenAsync(string token, string ipAddress)
-        {
-            var user = await _appDbContext.Users
-                .Include(u => u.RefreshTokens)
-                .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
-
-            if (user == null)
-                return new AuthResponseDto(401, "Invalid token");
-
-            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
-
-            if (!refreshToken.IsActive)
-                return new AuthResponseDto(401, "Expired or revoked refresh token");
-
-            // generate new refresh token and replace old one
-            var newRefreshToken = GenerateRefreshToken(ipAddress);
-            refreshToken.Revoked = DateTime.UtcNow;
-            refreshToken.RevokedByIp = ipAddress;
-            refreshToken.ReplacedByToken = newRefreshToken.Token;
-            user.RefreshTokens.Add(newRefreshToken);
-
-            // generate new JWT
-            var newJwtToken = GenerateJwtToken(user);
-            await _appDbContext.SaveChangesAsync();
-
-            return new AuthResponseDto(200, "Token refreshed", newJwtToken, refreshToken.Token);
-        }
-        public async Task<bool> RevokeTokenAsync(string token, string ipAddress)
-        {
-            var user = await _appDbContext.Users
-                .Include(u => u.RefreshTokens)
-                .SingleOrDefaultAsync(u => u.RefreshTokens.Any(t => t.Token == token));
-
-            if (user == null) return false;
-
-            var refreshToken = user.RefreshTokens.Single(x => x.Token == token);
-
-            if (!refreshToken.IsActive) return false;
-
-            // Mark token as revoked
-            refreshToken.Revoked = DateTime.UtcNow;
-            refreshToken.RevokedByIp = ipAddress;
-
-            await _appDbContext.SaveChangesAsync();
-            return true;
-        }
-
-        private string GenerateJwtToken(User user)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Secret"]);
-
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Name),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role,user.Role.ToString().ToLower())
-            };
-            var TokenDiscriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddDays(1),
-                SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key),
-                SecurityAlgorithms.HmacSha256Signature
-            )
-            };
-            var token = tokenHandler.CreateToken(TokenDiscriptor);
-            return tokenHandler.WriteToken(token);
-        }
-
-        private RefreshToken GenerateRefreshToken(string ipAddress)
-        {
-            return new RefreshToken
-            {
-                Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-                Expires = DateTime.UtcNow.AddDays(7),
-                Created = DateTime.UtcNow,
-                CreatedByIp = ipAddress
-            };
-        }
-
-
-    }
-}

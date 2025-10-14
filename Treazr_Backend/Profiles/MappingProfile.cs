@@ -24,7 +24,6 @@ namespace Treazr_Backend.Profiles
             .ForMember(dest => dest.IsActive, opt => opt.MapFrom(src => true));
 
 
-            // Map only when the source value is not null
             CreateMap<UpdateProductDTO, Product>()
                 .ForAllMembers(opts => opts.Condition((src, dest, srcMember) => srcMember != null));
 

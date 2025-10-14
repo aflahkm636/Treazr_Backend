@@ -6,6 +6,7 @@ using Serilog;
 using System.Text;
 using Treazr_Backend.Data;
 using Treazr_Backend.Middleware;
+using Treazr_Backend.Models;
 using Treazr_Backend.Profiles;
 using Treazr_Backend.Repository.Implementation;
 using Treazr_Backend.Repository.interfaces;
@@ -74,6 +75,12 @@ builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IWishlistService, WishListService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
+builder.Services.AddScoped<IDashBoardService,DashBoardService>();
+
+
+builder.Services.Configure<RazorpaySettings>(
+    builder.Configuration.GetSection("Razorpay"));
+
 
 // AutoMapper
 

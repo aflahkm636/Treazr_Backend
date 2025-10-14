@@ -50,6 +50,29 @@ namespace Treazr_Backend.Controllers
         {
             var result = await _authService.LoginAsync(loginDto);
 
+            if (result.StatusCode != 200)
+            {
+                return StatusCode(result.StatusCode, new { message = result.Message });
+            }
+
+            var jwtCookieOptions = new CookieOptions
+            {
+                HttpOnly = true,           
+                Expires = DateTime.UtcNow.AddDays(1), 
+                Secure = true,              
+                SameSite = SameSiteMode.Strict
+            };
+            Response.Cookies.Append("accessToken", result.AccessToken, jwtCookieOptions);
+
+            var refreshCookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddDays(7),
+                Secure = true,
+                SameSite = SameSiteMode.Strict
+            };
+            Response.Cookies.Append("refreshToken", result.RefreshToken, refreshCookieOptions);
+
             var response = new ApiResponse<object>
             {
                 StatusCode = result.StatusCode,
@@ -61,15 +84,38 @@ namespace Treazr_Backend.Controllers
                 }
             };
 
-            return StatusCode(result.StatusCode, response);
+            return Ok(response);
         }
 
         [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken([FromBody] string refreshToken)
+        public async Task<IActionResult> RefreshToken()
         {
+            var refreshToken = Request.Cookies["refreshToken"];
+            if (string.IsNullOrEmpty(refreshToken))
+                return Unauthorized(new { message = "No refresh token found" });
+
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
             var result = await _authService.RefreshTokenAsync(refreshToken, ipAddress!);
-            return StatusCode(result.StatusCode, result);
+
+            if (result.StatusCode != 200)
+                return StatusCode(result.StatusCode, new { message = result.Message });
+
+            Response.Cookies.Append("accessToken", result.AccessToken, new CookieOptions
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddDays(1),
+                Secure = true,
+                SameSite = SameSiteMode.Strict
+            });
+            Response.Cookies.Append("refreshToken", result.RefreshToken, new CookieOptions
+            {
+                HttpOnly = true,
+                Expires = DateTime.UtcNow.AddDays(7),
+                Secure = true,
+                SameSite = SameSiteMode.Strict
+            });
+
+            return Ok(new { message = "Token refreshed successfully" });
         }
 
 

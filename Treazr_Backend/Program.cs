@@ -81,9 +81,19 @@ builder.Services.AddScoped<IDashBoardService,DashBoardService>();
 builder.Services.Configure<RazorpaySettings>(
     builder.Configuration.GetSection("Razorpay"));
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+        policy => policy
+            .WithOrigins("http://localhost:5173") 
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+      .AllowCredentials()); 
+});
+
 
 // AutoMapper
-
+    
 builder.Services.AddAutoMapper(typeof(MappingProfile));
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -131,7 +141,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 //app.UseMiddleware<ExceptionMiddleware>();
-
+app.UseCors("AllowReactApp");
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -56,7 +56,10 @@ namespace Treazr_Backend.Services.implementation
             var user = await _userrepo.GetByIdAsync(id);
             if (user == null || user.IsDeleted)
                 return new ApiResponse<string>(404, "User not found");
-
+            if(user.Role== Roles.admin)
+            {
+                return new ApiResponse<string>(400, "cannot block or unblock Admin");
+            }
             user.IsBlocked = !user.IsBlocked;
             user.ModifiedOn = DateTime.UtcNow;
             _context.Users.Update(user);

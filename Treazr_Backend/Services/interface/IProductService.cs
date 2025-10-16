@@ -13,5 +13,6 @@ namespace Treazr_Backend.Services.interfaces
 
         Task<ApiResponse<string>> ToggleProductStatus(int id);
         Task<ApiResponse<IEnumerable<ProductDTO>>> GetFilteredProducts(string? name);
+        Task<ApiResponse<object>> GetNewestProductsAsync(int? count = null);
     }
 }

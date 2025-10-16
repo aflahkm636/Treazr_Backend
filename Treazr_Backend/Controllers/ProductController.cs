@@ -71,6 +71,14 @@ namespace Treazr_Backend.Controllers
             return StatusCode(products.StatusCode, products);
         }
 
+        //[HttpGet]
+        //[AllowAnonymous]
+        //public async Task<IActionResult> GetNewestProducts([FromQuery] int? count)
+        //{
+        //    var products = await _productService.GetNewestProductsAsync(count);
+        //    return StatusCode(products.StatusCode, products);
+        //}
+
         [HttpGet("filter")]
         [AllowAnonymous]
         public async Task<IActionResult>GetfiteredProducts([FromQuery] string? filter)

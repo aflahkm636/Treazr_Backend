@@ -245,6 +245,50 @@ namespace Treazr_Backend.Services.implementation
                 return new ApiResponse<string>(200, "Product Deactivated Successfully");
             }
         }
+        public async Task<ApiResponse<object>> GetNewestProductsAsync(int? count = null)
+        {
+            try
+            {
+                var query = _context.Products
+                    .Include(p => p.Category)
+                    .Include(p => p.Images)
+                    .Where(p => !p.IsDeleted && p.IsActive)
+                    .OrderByDescending(p => p.CreatedOn) 
+                    .AsQueryable();
+
+                if (count.HasValue && count > 0)
+                {
+                    query = query.Take(count.Value);
+                }
+
+                var products = await query.ToListAsync();
+
+                var productDtos = products.Select(p => new ProductDTO
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    Brand = p.Brand,
+                    Price = p.Price,
+                    CurrentStock = p.CurrentStock,
+                    InStock = p.InStock,
+                    CreatedOn = p.CreatedOn,
+                    CategoryId = p.CategoryId,
+                    CategoryName = p.Category?.Name ?? string.Empty,
+                    ImageBase64 = p.Images
+                        .Select(i => $"data:{i.ImageMimeType};base64,{Convert.ToBase64String(i.ImageData)}")
+                        .ToList()
+                }).ToList();
+
+                return new ApiResponse<object>(200, "Newest products fetched successfully", productDtos
+               );
+            }
+            catch (Exception ex)
+            {
+                return new ApiResponse<object>(500, $"Error fetching newest products: {ex.Message}");
+            }
+        }
+
 
         public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetFilteredProducts(string? name)
         {

@@ -20,6 +20,7 @@ namespace Treazr_Backend.Services.implementation
             var items = await _Context.Wishlists
                 .Where(x => x.UserId == userId && !x.IsDeleted)
                 .Include(x => x.Product)
+                .ThenInclude(p => p.Images)
                 .ToListAsync();
 
             var result = items.Select(i => new
@@ -28,10 +29,10 @@ namespace Treazr_Backend.Services.implementation
                 i.Product.Name,
                 i.Product.Price,
                 i.Product.Brand,
-                Images = i.Product.Images
-                    .Where(img => img.IsMain)
-                    .Select(img => new { img.ImageData, img.ImageMimeType })
-                    .FirstOrDefault()
+                ImageBase64 = i.Product.Images
+            .Select(img => img.ImageData != null
+            ? $"data:{img.ImageMimeType};base64,{Convert.ToBase64String(img.ImageData)}"
+            : null)
             });
 
             return new ApiResponse<object>(200, "Wishlist fetched successfully", result);

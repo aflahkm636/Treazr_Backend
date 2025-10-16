@@ -24,6 +24,7 @@ namespace Treazr_Backend.Services.implementation
             var cart = await _context.Carts
                 .Include(c => c.Items)
                 .ThenInclude(i => i.Product)
+                .ThenInclude(i=>i.Images)
                 .FirstOrDefaultAsync(c => c.UserId == userId && !c.IsDeleted);
 
             if (cart == null || !cart.Items.Any())
@@ -42,8 +43,10 @@ namespace Treazr_Backend.Services.implementation
                     i.Name,
                     i.Price,
                     i.Quantity,
-                    i.ImageData,
-                    i.ImageMimeType
+                    ImageBase64 = i.Product.Images
+            .Select(img => img.ImageData != null
+            ? $"data:{img.ImageMimeType};base64,{Convert.ToBase64String(img.ImageData)}"
+            : null)
                 })
             };
 

@@ -242,8 +242,12 @@ namespace Treazr_Backend.Services
                 return new ApiResponse<IEnumerable<ViewOrderDTO>>(400, "Username cannot be empty");
 
             var orders = await _context.Orders
-                .Include(o => o.User)
-                .Include(o => o.Items)
+               .Include(u => u.User)
+                                .Include(u => u.Address)
+
+                .Include(u => u.Items)
+    .ThenInclude(oi => oi.Product)
+            .ThenInclude(p => p.Images).OrderBy(o => o.Id)
                 .Where(o => o.User != null &&
                             EF.Functions.Like(o.User.Name, $"%{username}%"))
                 .ToListAsync();

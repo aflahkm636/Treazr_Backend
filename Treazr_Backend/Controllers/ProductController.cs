@@ -65,11 +65,15 @@ namespace Treazr_Backend.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAllProducts([FromQuery] int? pageNumber = null, [FromQuery] int? pageSize = null)
+        public async Task<IActionResult> GetProducts(
+    [FromQuery] string? search = null,
+    [FromQuery] int? pageNumber = null,
+    [FromQuery] int? pageSize = null)
         {
-            var products = await _productService.GetAllProductsAsync(pageNumber,pageSize);
+            var products = await _productService.GetProductsAsync(search, pageNumber, pageSize);
             return StatusCode(products.StatusCode, products);
         }
+
 
         //[HttpGet]
         //[AllowAnonymous]

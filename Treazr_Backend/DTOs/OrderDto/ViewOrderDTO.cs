@@ -17,7 +17,7 @@
         
         public List<OrderItemDTO> Items { get; set; }
 
- 
-        public DateTime CreatedAt { get; set; }
+
+        public DateTime CreatedOn { get; set; } = DateTime.UtcNow;
     }
 }

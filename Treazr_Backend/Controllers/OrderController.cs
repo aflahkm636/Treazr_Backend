@@ -64,6 +64,14 @@ namespace Treazr_Backend.Controllers
             var response = await _orderService.GetOrdersByUserIdAsync(userId);
             return StatusCode(response.StatusCode, response);
         }
+        [HttpGet("user/{userId}")]
+        [Authorize(Policy = "Admin")]
+        public async Task<IActionResult> GetOrdersByUserId(int userId)
+        {
+            var response = await _orderService.GetOrdersByUserIdAsync(userId);
+            return StatusCode(response.StatusCode, response);
+        }
+
 
         [HttpPost("cancel/{orderId}")]
         [Authorize(Policy = "Customer")]

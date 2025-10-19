@@ -175,14 +175,25 @@ namespace Treazr_Backend.Services.implementation
             return new ApiResponse<ProductDTO>(200, "Product Updated Successfully");
         }
 
-        public async Task<ApiResponse<object>> GetAllProductsAsync(int? pageNumber = null, int? pageSize = null)
+        public async Task<ApiResponse<object>> GetProductsAsync(string? search = null, int? pageNumber = null, int? pageSize = null)
         {
+            // Base query
             var query = _context.Products
                 .Include(p => p.Category)
                 .Include(p => p.Images)
-                .OrderBy(p => p.Name)
                 .AsQueryable();
 
+            // ✅ Apply optional filtering
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string lowerSearch = search.ToLower();
+                query = query.Where(p =>
+                    p.Name.ToLower().Contains(lowerSearch) ||
+                    p.Brand.ToLower().Contains(lowerSearch) ||
+                    p.Category.Name.ToLower().Contains(lowerSearch));
+            }
+
+            // ✅ If no pagination provided → return all filtered products
             if (pageNumber == null || pageSize == null)
             {
                 var allProducts = await query.ToListAsync();
@@ -190,7 +201,9 @@ namespace Treazr_Backend.Services.implementation
 
                 return new ApiResponse<object>(
                     200,
-                    "All products fetched successfully",
+                    string.IsNullOrWhiteSpace(search)
+                        ? "All products fetched successfully"
+                        : "Filtered products fetched successfully",
                     new
                     {
                         TotalCount = allProductDtos.Count(),
@@ -199,12 +212,14 @@ namespace Treazr_Backend.Services.implementation
                 );
             }
 
+            // ✅ Ensure pagination defaults
             if (pageNumber <= 0) pageNumber = 1;
             if (pageSize <= 0) pageSize = 10;
 
             var totalCount = await query.CountAsync();
 
             var pagedProducts = await query
+                .OrderBy(p => p.Name)
                 .Skip(((int)pageNumber - 1) * (int)pageSize)
                 .Take((int)pageSize)
                 .ToListAsync();
@@ -220,8 +235,15 @@ namespace Treazr_Backend.Services.implementation
                 Products = productDtos
             };
 
-            return new ApiResponse<object>(200, "Products fetched successfully", pagedResult);
+            return new ApiResponse<object>(
+                200,
+                string.IsNullOrWhiteSpace(search)
+                    ? "Products fetched successfully"
+                    : "Filtered products fetched successfully",
+                pagedResult
+            );
         }
+
 
         public async Task<ApiResponse<string>> ToggleProductStatus(int id)
         {

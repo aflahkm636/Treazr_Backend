@@ -157,6 +157,11 @@ namespace Treazr_Backend.Services.implementation
             //_mapper.Map(dto,product);
 
 
+            product.Images = product.Images
+         .Where(img => dto.ExistingImageIds.Contains(img.Id))
+         .ToList();
+
+            // Add new images
             if (dto.NewImages != null && dto.NewImages.Any())
             {
                 foreach (var file in dto.NewImages)
@@ -170,7 +175,6 @@ namespace Treazr_Backend.Services.implementation
                     });
                 }
             }
-
             await _context.SaveChangesAsync();
             return new ApiResponse<ProductDTO>(200, "Product Updated Successfully");
         }

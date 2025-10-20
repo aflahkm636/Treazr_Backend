@@ -224,8 +224,9 @@ namespace Treazr_Backend.Services
             var order = await _context.Orders
                 .Include(u => u.User)
                 .Include(u => u.Address)
-                .Include(u => u.Items)
-                 .ThenInclude(i => i.ImageData)
+               .Include(u => u.Items)
+    .ThenInclude(oi => oi.Product)
+            .ThenInclude(p => p.Images)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
 
             if (order == null)

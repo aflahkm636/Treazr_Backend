@@ -92,7 +92,7 @@ namespace Treazr_Backend.Controllers
 
 
         [HttpGet("{orderId}")]
-        [Authorize(Policy = "Admin")]
+        [Authorize(Policy = "user")]
         public async Task<IActionResult> GetOrderById(int orderId)
         {
             var response = await _orderService.GetOrderbyIdAsync(orderId);

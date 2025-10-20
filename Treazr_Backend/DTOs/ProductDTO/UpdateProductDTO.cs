@@ -21,11 +21,10 @@ namespace Treazr_Backend.DTOs.ProductDTO
         [Range(0, int.MaxValue, ErrorMessage = "Stock cannot be negative")]
         public int? CurrentStock { get; set; }
 
-        // Optional: activate/deactivate product
         public bool? IsActive { get; set; }
 
 
-        // Optional: new images to add
-        public List<IFormFile>? NewImages { get; set; }
+        public List<IFormFile> NewImages { get; set; } = new(); // Newly uploaded files
+        public List<int> ExistingImageIds { get; set; } = new(); 
     }
 }

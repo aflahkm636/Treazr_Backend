@@ -17,6 +17,11 @@ namespace Treazr_Backend.Models
         public int AddressId { get; set; }
         public Address Address { get; set; }
 
+        // Razorpay order ID (required for online payments)
+        public string? RazorpayOrderId { get; set; }
+
+        // Payment ID returned by Razorpay after payment
+        public string? PaymentId { get; set; }
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
 
 

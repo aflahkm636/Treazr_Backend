@@ -1,322 +1,281 @@
 ﻿using AutoMapper;
-using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
+using Microsoft.Extensions.Options;
+using Razorpay.Api;
+using System.Security.Cryptography;
+using System.Text;
 using Treazr_Backend.Common;
-using Treazr_Backend.Data;
-using Treazr_Backend.DTOs;
 using Treazr_Backend.DTOs.OrderDto;
+using Treazr_Backend.DTOs.paymentDto;
 using Treazr_Backend.Models;
+using Treazr_Backend.Repository.interfaces;
 using Treazr_Backend.Services.interfaces;
 
 namespace Treazr_Backend.Services
 {
+    using RazorpayOrder = Razorpay.Api.Order;
+    using TreazrOrder = Treazr_Backend.Models.Order;
+
     public class OrderService : IOrderService
     {
-        private readonly AppDbContext _context;
+        private readonly IOrderRepository _orderRepo;
+        private readonly IAddressRepository _addressRepo;
         private readonly IMapper _mapper;
+        private readonly RazorpaySettings _razorpaySettings;
 
-        public OrderService(AppDbContext context, IMapper mapper)
+        public OrderService(
+            IOrderRepository orderRepo,
+            IAddressRepository addressRepo,
+            IMapper mapper,
+            IOptions<RazorpaySettings> razorpaySettings)
         {
-            _context = context;
+            _orderRepo = orderRepo;
+            _addressRepo = addressRepo;
             _mapper = mapper;
+            _razorpaySettings = razorpaySettings.Value;
         }
 
         public async Task<ApiResponse<ViewOrderDTO>> CreateOrderFromCartAsync(int userId, CreateOrderDTO dto)
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var cartItems = await _orderRepo.GetCartItemsByUserAsync(userId);
+            if (!cartItems.Any())
+                return new ApiResponse<ViewOrderDTO>(400, "Cart is empty");
 
-            try
+            decimal totalAmount = 0;
+            foreach (var item in cartItems)
             {
-                var cartItems = await _context.CartItems
-                    .Include(ci => ci.Product)
-                        .ThenInclude(p => p.Images)
-                    .Include(ci => ci.Cart)
-                    .Where(ci => ci.Cart.UserId == userId)
-                    .ToListAsync();
+                if (item.Product == null)
+                    return new ApiResponse<ViewOrderDTO>(404, $"Product {item.ProductId} not found");
+                if (item.Product.CurrentStock < item.Quantity)
+                    return new ApiResponse<ViewOrderDTO>(400, $"Not enough stock for {item.Product.Name}");
 
-                if (!cartItems.Any())
-                    throw new Exception("Cart is empty");
+                totalAmount += item.Product.Price * item.Quantity;
+                item.Product.CurrentStock -= item.Quantity;
+            }
 
-                var orderItems = cartItems.Select(ci => new OrderItem
-                {
-                    ProductId = ci.ProductId,
-                    Quantity = ci.Quantity,
-                    Price = ci.Product.Price,
-                    Product = ci.Product,
-                    Name = ci.Product.Name
-                }).ToList();
+            var address = await _addressRepo.GetOrCreateAddressAsync(dto, userId);
 
-                _context.CartItems.RemoveRange(cartItems);
+            var orderItems = cartItems.Select(ci => new OrderItem
+            {
+                ProductId = ci.ProductId,
+                Quantity = ci.Quantity,
+                Price = ci.Product.Price,
+                Name = ci.Product.Name,
+                Product = ci.Product
+            }).ToList();
 
-                var address = await GetOrCreateAddress(dto, userId);
+            var order = _mapper.Map<TreazrOrder>(dto);
+            order.UserId = userId;
+            order.TotalAmount = totalAmount;
+            order.AddressId = address.Id;
+            order.Items = orderItems;
+            order.CreatedOn = DateTime.UtcNow;
 
-                var totalAmount = orderItems.Sum(oi => oi.Price * oi.Quantity);
-
-                var order = _mapper.Map<Order>(dto);
-                order.UserId = userId;
-                order.TotalAmount = totalAmount;
-                order.AddressId = address.Id;
-                order.Items = orderItems;
-                order.OrderStatus = OrderStatus.Pending;
+            if (dto.PaymentMethod == PaymentMethod.CashOnDelivery)
+            {
                 order.PaymentStatus = PaymentStatus.Pending;
-
-                await _context.Orders.AddAsync(order);
-                await _context.SaveChangesAsync();
-
-                await transaction.CommitAsync();
-
-                var result = _mapper.Map<ViewOrderDTO>(order);
-                return new ApiResponse<ViewOrderDTO>(200, "Order placed successfully", result);
+                order.OrderStatus = OrderStatus.Processing;
             }
-            catch
+            else if (dto.PaymentMethod == PaymentMethod.Razorpay)
             {
-                await transaction.RollbackAsync();
-                throw;
+                var razorpayOrder = CreateRazorpayOrder(totalAmount);
+                order.RazorpayOrderId = razorpayOrder["id"].ToString();
+                order.PaymentStatus = PaymentStatus.Pending;
+                order.OrderStatus = OrderStatus.Pending;
             }
+
+            await _orderRepo.DeleteCartItemsAsync(cartItems);
+            await _orderRepo.CreateOrderAsync(order);
+
+            var result = _mapper.Map<ViewOrderDTO>(order);
+            return new ApiResponse<ViewOrderDTO>(200, "Order created successfully", result);
         }
 
         public async Task<ApiResponse<ViewOrderDTO>> CreateOrderBuyNowAsync(int userId, BuyNowDTO dto, CreateOrderDTO orderDto)
         {
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var product = await _orderRepo.GetProductByIdAsync(dto.ProductId);
+            if (product == null)
+                return new ApiResponse<ViewOrderDTO>(404, "Product not found");
 
-            try
+            if (product.CurrentStock < dto.Quantity)
+                return new ApiResponse<ViewOrderDTO>(400, $"Not enough stock for {product.Name}");
+
+            decimal totalAmount = product.Price * dto.Quantity;
+            product.CurrentStock -= dto.Quantity;
+
+            var address = await _addressRepo.GetOrCreateAddressAsync(orderDto, userId);
+
+            var orderItem = new OrderItem
             {
-                var product = await _context.Products
-                    .Include(p => p.Images)
-                    .FirstOrDefaultAsync(p => p.Id == dto.ProductId);
+                ProductId = product.Id,
+                Quantity = dto.Quantity,
+                Price = product.Price,
+                Name = product.Name,
+                Product = product
+            };
 
-                if (product == null)
-                    throw new Exception("Product not found");
+            var order = _mapper.Map<TreazrOrder>(orderDto);
+            order.UserId = userId;
+            order.TotalAmount = totalAmount;
+            order.AddressId = address.Id;
+            order.Items = new List<OrderItem> { orderItem };
+            order.CreatedOn = DateTime.UtcNow;
 
-                var orderItem = new OrderItem
-                {
-                    ProductId = product.Id,
-                    Quantity = dto.Quantity,
-                    Price = product.Price,
-                    Name = product.Name,
-                    Product = product
-                };
-
-                var orderItems = new List<OrderItem> { orderItem };
-
-                var address = await GetOrCreateAddress(orderDto, userId);
-
-                var totalAmount = orderItems.Sum(oi => oi.Price * oi.Quantity);
-
-                var order = _mapper.Map<Order>(orderDto);
-                order.UserId = userId;
-                order.TotalAmount = totalAmount;
-                order.AddressId = address.Id;
-                order.Items = orderItems;
-                order.OrderStatus = OrderStatus.Pending;
+            if (orderDto.PaymentMethod == PaymentMethod.CashOnDelivery)
+            {
                 order.PaymentStatus = PaymentStatus.Pending;
-
-                await _context.Orders.AddAsync(order);
-                await _context.SaveChangesAsync();
-
-                await transaction.CommitAsync();
-
-                var result = _mapper.Map<ViewOrderDTO>(order);
-                return new ApiResponse<ViewOrderDTO>(200, "Order placed successfully", result);
+                order.OrderStatus = OrderStatus.Processing;
             }
-            catch
+            else if (orderDto.PaymentMethod == PaymentMethod.Razorpay)
             {
-                await transaction.RollbackAsync();
-                throw;
+                var razorpayOrder = CreateRazorpayOrder(totalAmount);
+                order.RazorpayOrderId = razorpayOrder["id"].ToString();
+                order.PaymentStatus = PaymentStatus.Pending;
+                order.OrderStatus = OrderStatus.Pending;
             }
+
+            await _orderRepo.CreateOrderAsync(order);
+
+            var result = _mapper.Map<ViewOrderDTO>(order);
+            return new ApiResponse<ViewOrderDTO>(200, "Order placed successfully", result);
         }
 
-
-
-        public async Task<ApiResponse<ViewOrderDTO>> UpdateOrderStatus(int orderId, OrderStatus newstatus)
+        private RazorpayOrder CreateRazorpayOrder(decimal amount)
         {
-            var order = await _context.Orders.FindAsync(orderId);
-            if (order == null)
-                throw new Exception("Order not found.");
-
-            order.OrderStatus = newstatus;
-
-            if (order.PaymentMethod == PaymentMethod.CashOnDelivery && newstatus == OrderStatus.Delivered)
+            var client = new RazorpayClient(_razorpaySettings.Key, _razorpaySettings.Secret);
+            var options = new Dictionary<string, object>
             {
-                order.PaymentStatus = PaymentStatus.Completed;
-            }
-
-            _context.Orders.Update(order);
-            await _context.SaveChangesAsync();
-
-            var orderDto = _mapper.Map<ViewOrderDTO>(order);
-            return new ApiResponse<ViewOrderDTO>(200, "order status updated successfully", orderDto);
-
+                { "amount", (int)(amount * 100) },
+                { "currency", "INR" },
+                { "receipt", Guid.NewGuid().ToString() },
+                { "payment_capture", 1 }
+            };
+            return client.Order.Create(options);
         }
 
+        public async Task<ApiResponse<object>> VerifyRazorpayPaymentAsync(PaymentVerifyDto dto)
+        {
+            if (!RazorpayUtils.VerifyPaymentSignature(dto.OrderId, dto.PaymentId, dto.Signature, _razorpaySettings.Secret))
+                return new ApiResponse<object>(400, "Invalid payment signature");
+
+            var order = await _orderRepo.GetByRazorpayOrderIdAsync(dto.OrderId);
+            if (order == null)
+                return new ApiResponse<object>(404, "Order not found");
+
+            order.PaymentStatus = PaymentStatus.Completed;
+            order.PaymentId = dto.PaymentId;
+            order.ModifiedOn = DateTime.UtcNow;
+
+            await _orderRepo.UpdateOrderAsync(order);
+
+            return new ApiResponse<object>(200, "Payment verified successfully");
+        }
+
+            public async Task<ApiResponse<ViewOrderDTO>> UpdateOrderStatus(int orderId, OrderStatus newStatus)
+        {
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null)
+                return new ApiResponse<ViewOrderDTO>(404, "Order not found");
+
+            order.OrderStatus = newStatus;
+            if (order.PaymentMethod == PaymentMethod.CashOnDelivery && newStatus == OrderStatus.Delivered)
+                order.PaymentStatus = PaymentStatus.Completed;
+
+            await _orderRepo.UpdateOrderAsync(order);
+            return new ApiResponse<ViewOrderDTO>(200, "Order status updated successfully", _mapper.Map<ViewOrderDTO>(order));
+        }
 
         public async Task<ApiResponse<IEnumerable<ViewOrderDTO>>> GetOrdersByUserIdAsync(int userId)
         {
-            var orders = await _context.Orders
-                .Where(o => o.UserId == userId)
-                .Include(o => o.Address)
-                .Include(o => o.Items)
-                    .ThenInclude(oi => oi.Product)
-                        .ThenInclude(p => p.Images)
-                .ToListAsync();
-
+            var orders = await _orderRepo.GetOrdersByUserIdAsync(userId);
             var result = _mapper.Map<IEnumerable<ViewOrderDTO>>(orders);
-            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200
-, "fetched all orders succesfully", result);
+            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, "Fetched all orders successfully", result);
         }
 
-        public async Task<ApiResponse<bool>> CancelOrderAsync(int userId, int OrderId)
+        public async Task<ApiResponse<bool>> CancelOrderAsync(int userId, int orderId)
         {
-            var order = await _context.Orders
-              .Include(o => o.Address)
-              .Include(o => o.Items)
-                  .ThenInclude(oi => oi.Product)
-                      .ThenInclude(p => p.Images)
-              .FirstOrDefaultAsync(o => o.Id == OrderId && o.UserId == userId);
-
-            if (order == null)
-                throw new Exception("Order not found or does not belong to the user");
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
+            if (order == null || order.UserId != userId)
+                return new ApiResponse<bool>(404, "Order not found or does not belong to the user", false);
 
             if (order.OrderStatus == OrderStatus.Delivered || order.OrderStatus == OrderStatus.Cancelled || order.OrderStatus == OrderStatus.Shipped)
-                throw new Exception("Order cannot be cancelled");
+                return new ApiResponse<bool>(400, "Order cannot be cancelled", false);
 
             order.OrderStatus = OrderStatus.Cancelled;
-
-            _context.Orders.Update(order);
-            await _context.SaveChangesAsync();
-
-            return new ApiResponse<bool>(200, "order cancelled successfully", true);
+            await _orderRepo.UpdateOrderAsync(order);
+            return new ApiResponse<bool>(200, "Order cancelled successfully", true);
         }
 
-
-        public async Task<ApiResponse<PagedResult<ViewOrderDTO>>> GetAllOrdersAsync(int pagenumber, int limit)
+        public async Task<ApiResponse<PagedResult<ViewOrderDTO>>> GetAllOrdersAsync(int pageNumber, int limit)
         {
-            var totalOrders = await _context.Orders.CountAsync();
-            var orders = await _context.Orders
-                .Include(u => u.User)
-                                .Include(u => u.Address)
+            var totalOrders = await _orderRepo.GetOrdersCountAsync();
+            var orders = await _orderRepo.GetAllOrdersAsync(pageNumber, limit);
 
-                .Include(u => u.Items)
-    .ThenInclude(oi => oi.Product)
-            .ThenInclude(p => p.Images).OrderBy(o => o.Id)
-
-                .Skip((pagenumber - 1) * limit)
-                .Take(limit)
-                .ToListAsync();
-            var totalpages = (int)Math.Ceiling((double)totalOrders / limit);
-            var orderDTO = _mapper.Map<List<ViewOrderDTO>>(orders);
+            var totalPages = (int)Math.Ceiling((double)totalOrders / limit);
             var result = new PagedResult<ViewOrderDTO>
             {
-                Items = orderDTO,
-
-                CurrentPage = pagenumber,
+                Items = _mapper.Map<List<ViewOrderDTO>>(orders),
+                CurrentPage = pageNumber,
                 PageSize = limit,
                 TotalItems = totalOrders,
-                TotalPages = totalpages
+                TotalPages = totalPages
             };
-
-            return new ApiResponse<PagedResult<ViewOrderDTO>>(200, "succesfully fetched orders", result);
-
+            return new ApiResponse<PagedResult<ViewOrderDTO>>(200, "Successfully fetched orders", result);
         }
 
         public async Task<ApiResponse<ViewOrderDTO>> GetOrderbyIdAsync(int orderId)
         {
-            var order = await _context.Orders
-                .Include(u => u.User)
-                .Include(u => u.Address)
-               .Include(u => u.Items)
-    .ThenInclude(oi => oi.Product)
-            .ThenInclude(p => p.Images)
-                .FirstOrDefaultAsync(o => o.Id == orderId);
-
+            var order = await _orderRepo.GetOrderByIdAsync(orderId);
             if (order == null)
                 return new ApiResponse<ViewOrderDTO>(404, "Order not found");
 
-            var result = _mapper.Map<ViewOrderDTO>(order);
-            return new ApiResponse<ViewOrderDTO>(200, "Order fetched successfully", result);
+            return new ApiResponse<ViewOrderDTO>(200, "Order fetched successfully", _mapper.Map<ViewOrderDTO>(order));
         }
-
 
         public async Task<ApiResponse<IEnumerable<ViewOrderDTO>>> SearchOrdersAsync(string username)
         {
             if (string.IsNullOrWhiteSpace(username))
                 return new ApiResponse<IEnumerable<ViewOrderDTO>>(400, "Username cannot be empty");
 
-            var orders = await _context.Orders
-               .Include(u => u.User)
-                                .Include(u => u.Address)
-
-                .Include(u => u.Items)
-    .ThenInclude(oi => oi.Product)
-            .ThenInclude(p => p.Images).OrderBy(o => o.Id)
-                .Where(o => o.User != null &&
-                            EF.Functions.Like(o.User.Name, $"%{username}%"))
-                .ToListAsync();
-
+            var orders = await _orderRepo.SearchOrdersAsync(username);
             if (!orders.Any())
                 return new ApiResponse<IEnumerable<ViewOrderDTO>>(404, "No orders found for the given username");
 
-            var result = _mapper.Map<List<ViewOrderDTO>>(orders);
-            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, "Orders found", result);
+            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, "Orders found", _mapper.Map<List<ViewOrderDTO>>(orders));
         }
-
 
         public async Task<ApiResponse<IEnumerable<ViewOrderDTO>>> GetOrdersByStatus(OrderStatus status)
         {
-            var orders = await _context.Orders
-                .Include(o => o.User)
-                .Include(o => o.Items)
-                .Where(o => o.OrderStatus == status)
-                .ToListAsync();
-
-            if (orders == null || orders.Count == 0)
-            {
+            var orders = await _orderRepo.GetOrdersByStatusAsync(status);
+            if (!orders.Any())
                 return new ApiResponse<IEnumerable<ViewOrderDTO>>(404, $"No orders found with status '{status}'");
-            }
 
-            var result = _mapper.Map<List<ViewOrderDTO>>(orders);
-            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, $"Orders with status '{status}' fetched successfully", result);
+            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, $"Orders with status '{status}' fetched successfully", _mapper.Map<List<ViewOrderDTO>>(orders));
         }
 
         public async Task<ApiResponse<IEnumerable<ViewOrderDTO>>> SortOrdersByDateAsync(bool ascending)
         {
-            var query = _context.Orders
-                .Include(o => o.User)
-                .Include(o => o.Items);
-
-            var orders = ascending
-                ? await query.OrderBy(o => o.CreatedOn).ToListAsync()
-                : await query.OrderByDescending(o => o.CreatedOn).ToListAsync();
-
-            var result = _mapper.Map<List<ViewOrderDTO>>(orders);
-
+            var orders = await _orderRepo.SortOrdersByDateAsync(ascending);
             string message = ascending
                 ? "Orders sorted in ascending order (oldest first)"
                 : "Orders sorted in descending order (recent first)";
 
-            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, message, result);
+            return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, message, _mapper.Map<List<ViewOrderDTO>>(orders));
         }
 
-        private async Task<Address> GetOrCreateAddress(CreateOrderDTO dto, int userId)
-        {
-            if (dto.NewAddress != null)
-            {
-                var address = _mapper.Map<Address>(dto.NewAddress);
-                address.UserId = userId;
-                await _context.Addresses.AddAsync(address);
-                await _context.SaveChangesAsync();
-                return address;
-            }
-            else if (dto.AddressId.HasValue && dto.AddressId > 0)
-            {
-                return await _context.Addresses.FindAsync(dto.AddressId.Value)
-                       ?? throw new Exception("Address not found");
-            }
-            else
-            {
-                throw new Exception("Address is required");
-            }
-        }
 
     }
 }
+      public static class RazorpayUtils
+{
+    public static bool VerifyPaymentSignature(string orderId, string paymentId, string signature, string secret)
+    {
+        string payload = $"{orderId}|{paymentId}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        string generatedSignature = BitConverter.ToString(hash).Replace("-", "").ToLower();
+        return generatedSignature == signature.ToLower();
+    }
+
+
+    }
+

@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Treazr_Backend.Common;
 using Treazr_Backend.DTOs.OrderDto;
+using Treazr_Backend.DTOs.paymentDto;
 using Treazr_Backend.Models;
 
 namespace Treazr_Backend.Services.interfaces
@@ -18,5 +19,6 @@ namespace Treazr_Backend.Services.interfaces
         Task<ApiResponse<IEnumerable<ViewOrderDTO>>> SearchOrdersAsync(string username);
         Task<ApiResponse<IEnumerable<ViewOrderDTO>>> GetOrdersByStatus(OrderStatus status);
         Task<ApiResponse<IEnumerable<ViewOrderDTO>>> SortOrdersByDateAsync(bool ascending);
+        Task<ApiResponse<object>> VerifyRazorpayPaymentAsync(PaymentVerifyDto dto);
     }
 }

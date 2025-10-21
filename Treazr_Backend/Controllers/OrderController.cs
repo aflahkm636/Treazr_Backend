@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using Treazr_Backend.Common;
 using Treazr_Backend.DTOs.OrderDto;
+using Treazr_Backend.DTOs.paymentDto;
 using Treazr_Backend.Models;
 using Treazr_Backend.Services.interfaces;
 
@@ -46,6 +47,15 @@ namespace Treazr_Backend.Controllers
             var response = await _orderService.CreateOrderBuyNowAsync(userId, dto.BuyNow, dto.Order);
             return StatusCode(response.StatusCode, response);
         }
+
+        [HttpPost("verify-payment")]
+        [Authorize(Policy = "Customer")]
+        public async Task<IActionResult> VerifyRazorpayPayment([FromBody] PaymentVerifyDto dto)
+        {
+            var response = await _orderService.VerifyRazorpayPaymentAsync(dto);
+            return StatusCode(response.StatusCode, response);
+        }
+
 
         [HttpPost("admin/update-status/{orderId}")]
         [Authorize(Policy ="Admin")]

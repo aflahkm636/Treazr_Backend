@@ -8,6 +8,7 @@ using Treazr_Backend.Data;
 using Treazr_Backend.Middleware;
 using Treazr_Backend.Models;
 using Treazr_Backend.Profiles;
+using Treazr_Backend.Repository.implementation;
 using Treazr_Backend.Repository.Implementation;
 using Treazr_Backend.Repository.interfaces;
 using Treazr_Backend.Services;
@@ -66,6 +67,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<IAddressRepository, AddressRepository>();
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+
 
 // Services
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -76,6 +80,7 @@ builder.Services.AddScoped<IWishlistService, WishListService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IDashBoardService,DashBoardService>();
+builder.Services.AddScoped<IAddressService, AddressService>();
 
 
 builder.Services.Configure<RazorpaySettings>(

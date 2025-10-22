@@ -279,7 +279,7 @@ namespace Treazr_Backend.Services.implementation
                     .Include(p => p.Category)
                     .Include(p => p.Images)
                     .Where(p => !p.IsDeleted && p.IsActive)
-                    .OrderByDescending(p => p.CreatedOn) 
+                    .OrderByDescending(p => p.CreatedOn)
                     .AsQueryable();
 
                 if (count.HasValue && count > 0)
@@ -318,23 +318,24 @@ namespace Treazr_Backend.Services.implementation
 
         public async Task<ApiResponse<IEnumerable<ProductDTO>>> GetFilteredProducts(string? name)
         {
-            var query =  _context.Products
+            var query = _context.Products
                 .Include(q => q.Category)
                 .Include(q => q.Images)
+                        .Where(q => q.IsActive)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(name))
-                query = query.Where(q => q.Name.Contains(name) ||  q.Category.Name.Contains(name)|| q.Brand.Contains(name));
+                query = query.Where(q => q.Name.Contains(name) || q.Category.Name.Contains(name) || q.Brand.Contains(name));
 
             //if (!string.IsNullOrWhiteSpace(category))
             //    query = query.Where(q => q.Category.Name.Contains(category)||  q.Category.Name.Contains(category) );
 
-            var products=await query.ToListAsync();
+            var products = await query.ToListAsync();
 
-            var productDto= _mapper.Map<IEnumerable<ProductDTO>>(products);
+            var productDto = _mapper.Map<IEnumerable<ProductDTO>>(products);
 
-            return new ApiResponse<IEnumerable<ProductDTO>>(200,"filtered products successfully" ,productDto);
+            return new ApiResponse<IEnumerable<ProductDTO>>(200, "filtered products successfully", productDto);
 
         }
-        }
+    }
 }

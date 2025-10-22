@@ -19,7 +19,7 @@ namespace Treazr_Backend.Repository.Implementation
             return await _Context.Products
                 .Include(p => p.Category)
                 .Include(p=>p.Images)
-                .Where(p=> p.CategoryId == categoryId)
+                .Where(p=> p.CategoryId == categoryId && p.IsActive)
                 .ToListAsync();
 
         }
@@ -29,7 +29,7 @@ namespace Treazr_Backend.Repository.Implementation
             return await _Context.Products
                 .Include(p=>p.Category)
                 .Include(p=>p.Images)
-                .FirstOrDefaultAsync(p=>p.Id == id);
+                .FirstOrDefaultAsync(p=>p.Id == id && p.IsActive);
         }
     }
 }

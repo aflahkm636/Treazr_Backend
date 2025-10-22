@@ -28,32 +28,38 @@ namespace Treazr_Backend.Controllers
             return int.Parse(claim.Value);
         }
 
-    
-        [HttpPost("checkout/cart")]
-        [Authorize(Policy = "Customer")]
-        public async Task<IActionResult> CreateOrderFromCart([FromBody] CreateOrderDTO dto)
+
+        [HttpPost("create")]
+        public async Task<IActionResult> CreateOrder([FromBody] CreateOrderDTO dto, [FromQuery] int? productId = null, [FromQuery] int? quantity = null)
         {
-            var userId = GetUserId();
-            var response = await _orderService.CreateOrderFromCartAsync(userId, dto);
-            return StatusCode(response.StatusCode, response);
+            if (!User.Identity.IsAuthenticated)
+                return Unauthorized("User not authenticated");
+
+            int userId = GetUserId();
+
+            BuyNowDTO buyNowDto = null;
+            if (productId.HasValue && quantity.HasValue)
+            {
+                buyNowDto = new BuyNowDTO
+                {
+                    ProductId = productId.Value,
+                    Quantity = quantity.Value
+                };
+            }
+
+            var result = await _orderService.CreateOrderAsync(userId, dto, buyNowDto);
+            return StatusCode(result.StatusCode, result);
         }
 
        
-        [HttpPost("checkout/buynow")]
-        [Authorize(Policy = "Customer")]
-        public async Task<IActionResult> CreateOrderBuyNow([FromBody] BuyNowRequestDTO dto)
-        {
-            var userId = GetUserId();
-            var response = await _orderService.CreateOrderBuyNowAsync(userId, dto.BuyNow, dto.Order);
-            return StatusCode(response.StatusCode, response);
-        }
-
         [HttpPost("verify-payment")]
-        [Authorize(Policy = "Customer")]
-        public async Task<IActionResult> VerifyRazorpayPayment([FromBody] PaymentVerifyDto dto)
+        public async Task<IActionResult> VerifyPayment([FromBody] PaymentVerifyDto dto)
         {
-            var response = await _orderService.VerifyRazorpayPaymentAsync(dto);
-            return StatusCode(response.StatusCode, response);
+            if (!User.Identity.IsAuthenticated)
+                return Unauthorized("User not authenticated");
+
+            var result = await _orderService.VerifyRazorpayPaymentAsync(dto);
+            return StatusCode(result.StatusCode, result);
         }
 
 

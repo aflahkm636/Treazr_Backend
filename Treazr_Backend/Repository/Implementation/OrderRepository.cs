@@ -29,7 +29,7 @@ namespace Treazr_Backend.Repository.implementation
         {
             return await _context.Products
                 .Include(p => p.Images)
-                .FirstOrDefaultAsync(p => p.Id == productId);
+                .FirstOrDefaultAsync(p => p.Id == productId && p.IsActive);
         }
 
         public async Task<Order> CreateOrderAsync(Order order)
@@ -129,6 +129,7 @@ namespace Treazr_Backend.Repository.implementation
         {
             return await _context.Orders
                 .Include(o => o.Items)
+                .ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(o => o.RazorpayOrderId == razorpayOrderId);
         }
     }

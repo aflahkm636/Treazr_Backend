@@ -8,8 +8,8 @@ namespace Treazr_Backend.Services.interfaces
 {
     public interface IOrderService
     {
-        Task<ApiResponse<ViewOrderDTO>> CreateOrderFromCartAsync(int userId, CreateOrderDTO dto);
-        Task<ApiResponse<ViewOrderDTO>> CreateOrderBuyNowAsync(int userId, BuyNowDTO buyNowDto, CreateOrderDTO orderDto);
+        Task<ApiResponse<object>> CreateOrderAsync(int userId, CreateOrderDTO dto, BuyNowDTO buyNowDto = null);
+
         Task<ApiResponse<ViewOrderDTO>> UpdateOrderStatus(int orderId, OrderStatus newStatus);
         Task<ApiResponse<IEnumerable<ViewOrderDTO>>> GetOrdersByUserIdAsync(int userId);
         Task<ApiResponse<bool>> CancelOrderAsync(int userId, int orderId);

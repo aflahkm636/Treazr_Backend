@@ -34,34 +34,62 @@ namespace Treazr_Backend.Services
             _razorpaySettings = razorpaySettings.Value;
         }
 
-        public async Task<ApiResponse<ViewOrderDTO>> CreateOrderFromCartAsync(int userId, CreateOrderDTO dto)
+        // Unified order creation method (BuyNow or Cart)
+        public async Task<ApiResponse<object>> CreateOrderAsync(int userId, CreateOrderDTO dto, BuyNowDTO buyNowDto = null)
         {
-            var cartItems = await _orderRepo.GetCartItemsByUserAsync(userId);
-            if (!cartItems.Any())
-                return new ApiResponse<ViewOrderDTO>(400, "Cart is empty");
-
+            List<CartItem> cartItems = null;
+            List<OrderItem> orderItems = new List<OrderItem>();
             decimal totalAmount = 0;
-            foreach (var item in cartItems)
-            {
-                if (item.Product == null)
-                    return new ApiResponse<ViewOrderDTO>(404, $"Product {item.ProductId} not found");
-                if (item.Product.CurrentStock < item.Quantity)
-                    return new ApiResponse<ViewOrderDTO>(400, $"Not enough stock for {item.Product.Name}");
 
-                totalAmount += item.Product.Price * item.Quantity;
-                item.Product.CurrentStock -= item.Quantity;
+            // Determine BuyNow or Cart
+            if (buyNowDto != null)
+            {
+                var product = await _orderRepo.GetProductByIdAsync(buyNowDto.ProductId);
+                if (product == null)
+                    return new ApiResponse<object>(404, "Product not found");
+                Console.WriteLine($"Product: {product.Name}, Stock: {product.CurrentStock}, Quantity: {buyNowDto.Quantity}");
+
+                if (product.CurrentStock < buyNowDto.Quantity)
+                    return new ApiResponse<object>(400, $"Not enough stock for {product.Name}");
+
+                totalAmount = product.Price * buyNowDto.Quantity;
+
+                orderItems.Add(new OrderItem
+                {
+                    ProductId = product.Id,
+                    Quantity = buyNowDto.Quantity,
+                    Price = product.Price,
+                    Name = product.Name,
+                    Product = product
+                });
+            }
+            else
+            {
+                cartItems = await _orderRepo.GetCartItemsByUserAsync(userId);
+                if (!cartItems.Any())
+                    return new ApiResponse<object>(400, "Cart is empty");
+
+                foreach (var item in cartItems)
+                {
+                    if (item.Product == null)
+                        return new ApiResponse<object>(404, $"Product {item.ProductId} not found");
+                    if (item.Product.CurrentStock < item.Quantity)
+                        return new ApiResponse<object>(400, $"Not enough stock for {item.Product.Name}");
+
+                    totalAmount += item.Product.Price * item.Quantity;
+
+                    orderItems.Add(new OrderItem
+                    {
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        Price = item.Product.Price,
+                        Name = item.Product.Name,
+                        Product = item.Product
+                    });
+                }
             }
 
             var address = await _addressRepo.GetOrCreateAddressAsync(dto, userId);
-
-            var orderItems = cartItems.Select(ci => new OrderItem
-            {
-                ProductId = ci.ProductId,
-                Quantity = ci.Quantity,
-                Price = ci.Product.Price,
-                Name = ci.Product.Name,
-                Product = ci.Product
-            }).ToList();
 
             var order = _mapper.Map<TreazrOrder>(dto);
             order.UserId = userId;
@@ -69,74 +97,75 @@ namespace Treazr_Backend.Services
             order.AddressId = address.Id;
             order.Items = orderItems;
             order.CreatedOn = DateTime.UtcNow;
+            order.PaymentStatus = PaymentStatus.Pending;
 
             if (dto.PaymentMethod == PaymentMethod.CashOnDelivery)
             {
-                order.PaymentStatus = PaymentStatus.Pending;
+                foreach (var item in orderItems)
+                    item.Product.CurrentStock -= item.Quantity;
+
                 order.OrderStatus = OrderStatus.Processing;
+
+                await _orderRepo.CreateOrderAsync(order);
+
+                if (cartItems != null)
+                    await _orderRepo.DeleteCartItemsAsync(cartItems);
+
+                var result = _mapper.Map<ViewOrderDTO>(order);
+                return new ApiResponse<object>(200, "Order created successfully (COD)", result);
             }
             else if (dto.PaymentMethod == PaymentMethod.Razorpay)
             {
                 var razorpayOrder = CreateRazorpayOrder(totalAmount);
                 order.RazorpayOrderId = razorpayOrder["id"].ToString();
-                order.PaymentStatus = PaymentStatus.Pending;
                 order.OrderStatus = OrderStatus.Pending;
+
+                await _orderRepo.CreateOrderAsync(order);
+
+                var data = new
+                {
+                    orderId = order.RazorpayOrderId,
+                    amount = order.TotalAmount,
+                    currency = "INR",
+                    key = _razorpaySettings.Key
+                };
+
+                return new ApiResponse<object>(200, "Razorpay order created successfully", data);
             }
 
-            await _orderRepo.DeleteCartItemsAsync(cartItems);
-            await _orderRepo.CreateOrderAsync(order);
-
-            var result = _mapper.Map<ViewOrderDTO>(order);
-            return new ApiResponse<ViewOrderDTO>(200, "Order created successfully", result);
+            return new ApiResponse<object>(400, "Invalid payment method");
         }
 
-        public async Task<ApiResponse<ViewOrderDTO>> CreateOrderBuyNowAsync(int userId, BuyNowDTO dto, CreateOrderDTO orderDto)
+        // Razorpay verification and stock/cart update
+        public async Task<ApiResponse<object>> VerifyRazorpayPaymentAsync(PaymentVerifyDto dto)
         {
-            var product = await _orderRepo.GetProductByIdAsync(dto.ProductId);
-            if (product == null)
-                return new ApiResponse<ViewOrderDTO>(404, "Product not found");
+            if (!RazorpayUtils.VerifyPaymentSignature(dto.OrderId, dto.PaymentId, dto.Signature, _razorpaySettings.Secret))
+                return new ApiResponse<object>(400, "Invalid payment signature");
 
-            if (product.CurrentStock < dto.Quantity)
-                return new ApiResponse<ViewOrderDTO>(400, $"Not enough stock for {product.Name}");
+            var order = await _orderRepo.GetByRazorpayOrderIdAsync(dto.OrderId);
+            if (order == null)
+                return new ApiResponse<object>(404, "Order not found");
 
-            decimal totalAmount = product.Price * dto.Quantity;
-            product.CurrentStock -= dto.Quantity;
+            order.PaymentStatus = PaymentStatus.Completed;
+            order.PaymentId = dto.PaymentId;
+            order.ModifiedOn = DateTime.UtcNow;
 
-            var address = await _addressRepo.GetOrCreateAddressAsync(orderDto, userId);
+            // Reduce stock
+            foreach (var item in order.Items)
+                item.Product.CurrentStock -= item.Quantity;
 
-            var orderItem = new OrderItem
+            // Delete cart items if this was a cart order
+            var cartItems = await _orderRepo.GetCartItemsByUserAsync(order.UserId);
+            if (cartItems.Any())
             {
-                ProductId = product.Id,
-                Quantity = dto.Quantity,
-                Price = product.Price,
-                Name = product.Name,
-                Product = product
-            };
-
-            var order = _mapper.Map<TreazrOrder>(orderDto);
-            order.UserId = userId;
-            order.TotalAmount = totalAmount;
-            order.AddressId = address.Id;
-            order.Items = new List<OrderItem> { orderItem };
-            order.CreatedOn = DateTime.UtcNow;
-
-            if (orderDto.PaymentMethod == PaymentMethod.CashOnDelivery)
-            {
-                order.PaymentStatus = PaymentStatus.Pending;
-                order.OrderStatus = OrderStatus.Processing;
-            }
-            else if (orderDto.PaymentMethod == PaymentMethod.Razorpay)
-            {
-                var razorpayOrder = CreateRazorpayOrder(totalAmount);
-                order.RazorpayOrderId = razorpayOrder["id"].ToString();
-                order.PaymentStatus = PaymentStatus.Pending;
-                order.OrderStatus = OrderStatus.Pending;
+                var itemsToDelete = cartItems.Where(c => order.Items.Any(o => o.ProductId == c.ProductId)).ToList();
+                if (itemsToDelete.Any())
+                    await _orderRepo.DeleteCartItemsAsync(itemsToDelete);
             }
 
-            await _orderRepo.CreateOrderAsync(order);
+            await _orderRepo.UpdateOrderAsync(order);
 
-            var result = _mapper.Map<ViewOrderDTO>(order);
-            return new ApiResponse<ViewOrderDTO>(200, "Order placed successfully", result);
+            return new ApiResponse<object>(200, "Payment verified and order finalized successfully");
         }
 
         private RazorpayOrder CreateRazorpayOrder(decimal amount)
@@ -152,25 +181,7 @@ namespace Treazr_Backend.Services
             return client.Order.Create(options);
         }
 
-        public async Task<ApiResponse<object>> VerifyRazorpayPaymentAsync(PaymentVerifyDto dto)
-        {
-            if (!RazorpayUtils.VerifyPaymentSignature(dto.OrderId, dto.PaymentId, dto.Signature, _razorpaySettings.Secret))
-                return new ApiResponse<object>(400, "Invalid payment signature");
-
-            var order = await _orderRepo.GetByRazorpayOrderIdAsync(dto.OrderId);
-            if (order == null)
-                return new ApiResponse<object>(404, "Order not found");
-
-            order.PaymentStatus = PaymentStatus.Completed;
-            order.PaymentId = dto.PaymentId;
-            order.ModifiedOn = DateTime.UtcNow;
-
-            await _orderRepo.UpdateOrderAsync(order);
-
-            return new ApiResponse<object>(200, "Payment verified successfully");
-        }
-
-            public async Task<ApiResponse<ViewOrderDTO>> UpdateOrderStatus(int orderId, OrderStatus newStatus)
+        public async Task<ApiResponse<ViewOrderDTO>> UpdateOrderStatus(int orderId, OrderStatus newStatus)
         {
             var order = await _orderRepo.GetOrderByIdAsync(orderId);
             if (order == null)
@@ -261,21 +272,17 @@ namespace Treazr_Backend.Services
 
             return new ApiResponse<IEnumerable<ViewOrderDTO>>(200, message, _mapper.Map<List<ViewOrderDTO>>(orders));
         }
+    }
 
-
+    public static class RazorpayUtils
+    {
+        public static bool VerifyPaymentSignature(string orderId, string paymentId, string signature, string secret)
+        {
+            string payload = $"{orderId}|{paymentId}";
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
+            var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
+            string generatedSignature = BitConverter.ToString(hash).Replace("-", "").ToLower();
+            return generatedSignature == signature.ToLower();
+        }
     }
 }
-      public static class RazorpayUtils
-{
-    public static bool VerifyPaymentSignature(string orderId, string paymentId, string signature, string secret)
-    {
-        string payload = $"{orderId}|{paymentId}";
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(payload));
-        string generatedSignature = BitConverter.ToString(hash).Replace("-", "").ToLower();
-        return generatedSignature == signature.ToLower();
-    }
-
-
-    }
-

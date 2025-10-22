@@ -21,7 +21,7 @@ namespace Treazr_Backend.Repository.implementation
         public async Task<IEnumerable<Address>> GetUserAddressesAsync(int userId)
         {
             return await _context.Addresses
-                .Where(a => a.UserId == userId)
+        .Where(a => a.UserId == userId && !a.IsDeleted) 
                 .ToListAsync();
         }
 

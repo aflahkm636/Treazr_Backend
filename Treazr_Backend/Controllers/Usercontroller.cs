@@ -26,7 +26,7 @@ namespace Treazr_Backend.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        [Authorize(Roles = "user")]
+        [Authorize(Policy = "User")]
         [HttpGet("me")]
         public async Task<IActionResult> GetMyProfile()
         {
@@ -35,15 +35,15 @@ namespace Treazr_Backend.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        [Authorize(Roles = "Admin")]
-        [HttpGet("{id:int}")]
+        [Authorize(Policy = "Admin")]
+        [HttpGet("{id}")]
         public async Task<IActionResult> GetUserById(int id)
         {
             var response = await _userService.GetUserByIdAsync(id);
             return StatusCode(response.StatusCode, response);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = "Admin")]
         [HttpPut("{id}")]
         public async Task<IActionResult> BlockUnBlockUser(int id)
         {
@@ -51,7 +51,7 @@ namespace Treazr_Backend.Controllers
             return StatusCode(response.StatusCode, response);
         }
 
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = "Admin")]
         [HttpDelete("{id}")]
         public async Task<IActionResult> SoftDeleteUser(int id)
         {
